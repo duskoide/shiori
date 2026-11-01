@@ -134,6 +134,8 @@ func init() {
 		{Name: "app.zoom_in", Title: "Zoom in", run: func(a *App, _ args) (any, error) { a.zoomBy(1); return nil, nil }},
 		{Name: "app.zoom_out", Title: "Zoom out", run: func(a *App, _ args) (any, error) { a.zoomBy(-1); return nil, nil }},
 		{Name: "app.zoom_reset", Title: "Reset zoom", run: func(a *App, _ args) (any, error) { a.zoomBy(0); return nil, nil }},
+		{Name: "app.check_updates", Title: "Check for updates", About: "Ask GitHub whether a newer Shiori is out; answers {current, latest, newer, url}", run: (*App).cmdCheckUpdates},
+		{Name: "app.update", Title: "Update Shiori", About: "Run shiori update in a new tab", run: (*App).cmdUpdate},
 		{Name: "app.quit", Title: "Quit", About: "Close the window; terminals keep running", run: func(a *App, _ args) (any, error) { mygo.App.Quit(); return nil, nil }},
 		{Name: "window.close", Title: "Close window", hidden: true, run: func(a *App, _ args) (any, error) {
 			if a.win != nil {
@@ -149,7 +151,7 @@ var unsupported = []string{
 	"terminal.peek", "terminal.show", "terminal.right_click", "terminal.copy", "terminal.paste", "terminal.paste_image",
 	"tab.settle", "tab.unsettle", "overlay.close", "mod.clone",
 	"layout.switch", "layout.clone", "layout.set", "layout.show", "layout.hide", "layout.resize", "layout.select", "layout.reset",
-	"app.welcome", "app.whats_new", "app.feedback", "app.check_updates", "app.update_core", "app.reset", "app.update",
+	"app.welcome", "app.whats_new", "app.feedback", "app.update_core", "app.reset",
 	"app.hide", "app.hide_others", "app.show_all", "window.minimize", "window.maximize",
 }
 

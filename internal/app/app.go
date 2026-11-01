@@ -18,6 +18,7 @@ import (
 	"github.com/duskoide/shiori/internal/keys"
 	"github.com/duskoide/shiori/internal/layout"
 	"github.com/duskoide/shiori/internal/theme"
+	"github.com/duskoide/shiori/internal/update"
 )
 
 // docName is the core document the layout lives in: the one herdr-app
@@ -116,7 +117,14 @@ type App struct {
 	settings bool
 	set      settingsState // the settings panel's own state
 	chg      changesState  // the changes panel
-	toasts   []toast
+
+	// The look for new versions (updates.go).
+	upd         updateState
+	updOpts     update.Options
+	updTimer    *time.Timer
+	updChecking bool
+	updWaiters  []*deferred
+	toasts      []toast
 
 	keymap  *keys.Keymap
 	keysRaw []byte // keys.json as last read, to tell a change from a rewrite
@@ -144,6 +152,8 @@ type Settings struct {
 	Sidebar  *bool   `json:"sidebar,omitempty"`
 	// Changes shows the changes panel.
 	Changes *bool `json:"changes,omitempty"`
+	// UpdateCheck false stops the daily look for a new version.
+	UpdateCheck *bool `json:"update_check,omitempty"`
 	// Mods are the mods turned on or off, by id.
 	Mods map[string]ModSetting `json:"mods,omitempty"`
 }
@@ -192,6 +202,7 @@ func newApp(home, session string) *App {
 		sidebarW:   sidebarWidth,
 	}
 	a.loadSettings()
+	a.upd, a.updOpts = loadUpdateState(home), update.FromEnv()
 	a.reloadMods()
 	a.loadKeys()
 	a.applyTheme()

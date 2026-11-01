@@ -30,6 +30,7 @@ var settingsSections = []struct{ id, title, icon string }{
 	{"keyboard", "Keyboard", "keyboard"},
 	{"mods", "Mods", "puzzle"},
 	{"files", "Files", "file"},
+	{"about", "About", "info"},
 }
 
 // settingsState is what the panel keeps while it is open.
@@ -85,8 +86,10 @@ func settingsSectionOf(name string) (string, bool) {
 		return "layout", true
 	case "extensions", "plugins", "mod":
 		return "mods", true
-	case "about", "config":
+	case "config":
 		return "files", true
+	case "version", "updates", "update":
+		return "about", true
 	}
 	return settingsSections[0].id, false
 }
@@ -503,6 +506,8 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 							a.modsPage(c, k)
 						case "files":
 							a.filesPage(c, k)
+						case "about":
+							a.aboutPage(c, k)
 						}
 					})
 				})

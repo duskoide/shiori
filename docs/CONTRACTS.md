@@ -201,3 +201,25 @@ func (w *Watcher) SetIdle(idle bool) // 5× slower (10s at least) while nobody l
 func (w *Watcher) Stop()
 func Since(now, t time.Time) string // "now", "<1m", "5m", "3h", "2d"
 ```
+
+## internal/update
+
+New versions. One HTTPS request to GitHub's API for the latest release
+(User-Agent `shiori-update`, a token only when one is set); installing
+checks the archive against the release's checksums.txt.
+
+```go
+type Options struct { API, Repo, Token string; Client *http.Client }
+func FromEnv() Options // SHIORI_UPDATE_API, SHIORI_REPO, GITHUB_TOKEN / GH_TOKEN
+func (o Options) RepoName() string
+type Release struct { Tag, Name, URL, Notes string; Published time.Time; Assets []Asset }
+func (r Release) Version() string // the tag without its v
+func Latest(ctx context.Context, o Options, tag string) (Release, error) // tag "" for the latest; ErrNoRelease
+func Compare(a, b string) int     // semantic versions; build metadata (+…) ignored
+func Development(v string) bool   // "-dev", 0.0.0 or unreadable: no release to update to
+func ArchiveName() string         // shiori_<goos>_<goarch>.tar.gz
+type Layout struct { Exe, CoreDir string }
+func Here() (Layout, error)       // the running binary's; refuses go run builds
+func Install(ctx context.Context, o Options, r Release, l Layout, progress func(string)) error
+```
+
