@@ -130,7 +130,13 @@ func (a *App) toastView(c *ui.Context, k *colors) {
 	if len(a.toasts) == 0 {
 		return
 	}
-	c.After(time.Until(a.toasts[0].until))
+	next := a.toasts[0].until
+	for _, t := range a.toasts {
+		if t.until.Before(next) {
+			next = t.until
+		}
+	}
+	c.After(time.Until(next))
 	ui.Overlay(c, func() {
 		ui.Column(c).Absolute().Bottom(statusHeight + 16).Right(16).Gap(8).AlignItems(ui.End).PassThrough().Children(func() {
 			for i, t := range a.toasts {
@@ -142,6 +148,8 @@ func (a *App) toastView(c *ui.Context, k *colors) {
 					Shadow(0, 8, 24, 0, ui.RGBA(0, 0, 0, 0.3)).AlignItems(ui.Center).MaxWidth(460).Children(func() {
 					if t.level == levelError {
 						ui.Icon(c, glyph("alert")).Size(14, 14).TextColor(k.blocked).Shrink(0)
+					} else if t.icon != "" {
+						ui.Icon(c, glyph(t.icon)).Size(14, 14).TextColor(k.done).Shrink(0)
 					}
 					ui.Text(c, t.text).FontSize(12.5).TextColor(k.foreground)
 				})

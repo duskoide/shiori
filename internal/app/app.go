@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -427,6 +428,7 @@ type toast struct {
 	text  string
 	level level
 	until time.Time
+	icon  string // a glyph before the text, or ""
 }
 
 // level is how a toast looks: news, or something that went wrong.
@@ -451,6 +453,21 @@ func (a *App) notifyLevel(text string, lv level) {
 		a.toasts = a.toasts[len(a.toasts)-4:]
 	}
 }
+
+// notifyBrief shows a passing message for a moment, in place of the same
+// message still showing rather than beside it: "Copied", copy after copy.
+// icon is a glyph before the text, or "".
+func (a *App) notifyBrief(text, icon string) {
+	a.toasts = slices.DeleteFunc(a.toasts, func(t toast) bool { return t.text == text })
+	a.toasts = append(a.toasts, toast{text: text, level: levelInfo, until: time.Now().Add(briefToast), icon: icon})
+	if len(a.toasts) > 4 {
+		a.toasts = a.toasts[len(a.toasts)-4:]
+	}
+	a.invalidate()
+}
+
+// briefToast is how long notifyBrief's messages show.
+const briefToast = 1500 * time.Millisecond
 
 // homeDir is the person's home directory, for naming folders.
 func homeDir() string {

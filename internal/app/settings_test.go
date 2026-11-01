@@ -373,3 +373,34 @@ func TestSettingsCopyOnSelect(t *testing.T) {
 		t.Fatalf("copy on select %v, stored %v", a.cfg.copiesOnSelect(), a.cfg.CopyOnSelect)
 	}
 }
+
+func TestCopiedToast(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	a.notify("Settings reloaded")
+	a.termCopied("x", terminal.CopyProgram)
+	settle(tt)
+	if tt.HasText("Copied") {
+		t.Fatal("a program's copy says Copied")
+	}
+	a.termCopied("x", terminal.CopySelect)
+	a.termCopied("y", terminal.CopyUser)
+	settle(tt)
+	n := 0
+	for _, s := range tt.Texts() {
+		if s == "Copied" {
+			n++
+		}
+	}
+	if n != 1 || !tt.HasText("Settings reloaded") {
+		t.Fatalf("%d Copied toasts; texts %q", n, tt.Texts())
+	}
+	// It passes before the others.
+	for i := range a.toasts {
+		a.toasts[i].until = a.toasts[i].until.Add(-briefToast)
+	}
+	settle(tt)
+	if tt.HasText("Copied") || !tt.HasText("Settings reloaded") {
+		t.Fatalf("texts %q", tt.Texts())
+	}
+}

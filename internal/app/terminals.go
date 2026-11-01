@@ -54,6 +54,7 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 		OnExit: func(int) {
 			a.post(func() { a.termEnded(pt) })
 		},
+		OnCopy: a.termCopied,
 		OnBell: func() {
 			a.post(func() { a.invalidate() })
 		},
@@ -74,6 +75,15 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 	pt.term = t
 	a.terms[addr] = pt
 	return pt
+}
+
+// termCopied runs as a terminal writes to the clipboard: the person's
+// copies (a selection, the copy keys, the menu) say so for a moment; a
+// program's (OSC 52) do not, as a program may copy often.
+func (a *App) termCopied(_ string, by terminal.CopySource) {
+	if by != terminal.CopyProgram {
+		a.notifyBrief("Copied", "check")
+	}
 }
 
 // copyOnSelect is where the terminals copy what the mouse selects: the
