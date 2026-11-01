@@ -342,7 +342,7 @@ func (e *Events) applyLocked(p eventParams) Change {
 		var d struct {
 			Reason     *string `json:"reason"`
 			ExitCode   *int    `json:"exit_code"`
-			Signal     *string `json:"signal"`
+			Signal     *int    `json:"signal"`
 			FinishedMs *int64  `json:"finished_ms"`
 		}
 		if json.Unmarshal(p.Data, &d) != nil {
