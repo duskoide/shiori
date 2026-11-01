@@ -1,0 +1,46 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (must exist), e.g. v0.1.0
+        required: true
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./... && go test ./...
+      - name: Build
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${target%/*} arch=${target#*/}
+            dir=dist/shiori_${os}_${arch}
+            mkdir -p "$dir"
+            GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=${TAG#v}" -o "$dir/shiori" ./cmd/shiori
+            cp assets/icon.png LICENSE NOTICE README.md "$dir/"
+            tar -C "$dir" -czf "$dir.tar.gz" .
+          done
+          cp install.sh dist/
+          (cd dist && sha256sum *.tar.gz install.sh > checksums.txt)
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --title "Shiori $TAG" --generate-notes
+          gh release upload "$TAG" dist/*.tar.gz dist/install.sh dist/checksums.txt --clobber
