@@ -3,8 +3,8 @@
 
     uv run --with fonttools --with resvg-py tools/logo/make_logo.py [font.ttc]
 
-Writes resources/logo.svg (the app icon), resources/icon.png (1024x1024, what
-mygo build packages and the window shows) and resources/mark.svg (the bare
+Writes assets/logo.svg (the app icon), assets/icon.png (1024x1024, what
+mygo build packages and the window shows) and assets/mark.svg (the bare
 glyph in currentColor, 24x24, for the sidebar). The glyph is outlines, so
 the SVGs need no font.
 """
@@ -64,7 +64,7 @@ def main():
     path = sys.argv[1] if len(sys.argv) > 1 else next((p for p in FONTS if os.path.exists(p)), None)
     if not path:
         raise SystemExit("Noto Sans CJK not found; pass the .ttc")
-    res = os.path.join(ROOT, "resources")
+    res = os.path.join(ROOT, "assets")
     os.makedirs(res, exist_ok=True)
 
     icon_glyph = glyph_path(just_the_glyph(japanese_face(path)), 700, (282, 314, 460))
@@ -99,7 +99,7 @@ def main():
     import resvg_py
     with open(os.path.join(res, "icon.png"), "wb") as f:
         f.write(bytes(resvg_py.svg_to_bytes(svg_string=logo, width=1024, height=1024)))
-    print("wrote resources/logo.svg, resources/icon.png, resources/mark.svg")
+    print("wrote assets/logo.svg, assets/icon.png, assets/mark.svg")
 
 
 if __name__ == "__main__":

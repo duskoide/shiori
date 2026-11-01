@@ -8,7 +8,7 @@ behaviour, wire protocol usage, default key bindings
 (internal/keys/default_keys.json) and program table
 (internal/programs/programs.json) follow that project.
 
-The logo (resources/logo.svg, resources/icon.png, resources/mark.svg) is
+The logo (assets/logo.svg, assets/icon.png, assets/mark.svg) is
 the character 栞 from Noto Sans CJK JP (https://github.com/notofonts/noto-cjk),
 SIL Open Font License 1.1, converted to outlines.
 

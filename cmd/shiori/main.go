@@ -7,12 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
 
-	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/terminal"
-	"github.com/egoist/mygo/ui"
+	"github.com/duskoide/shiori/internal/app"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -26,12 +23,12 @@ Usage:
   shiori status              connection, focus and overlays of the open window
   shiori commands            every command and its arguments, as JSON
   shiori do <cmd> [--k v ...|'{json}']
-                                 run a command in the open window
+                             run a command in the open window
   shiori --version | --help
 
 Environment:
   SHIORI_HOME   the app's files (default ~/.config/shiori)
-  HC_SESSION        the herdr-core session to use (default "default")
+  HC_SESSION    the herdr-core session to use (default "default")
 `
 
 func main() {
@@ -42,9 +39,9 @@ func main() {
 }
 
 func run(argv []string, out io.Writer) error {
-	home := defaultHome()
+	home := app.DefaultHome()
 	if len(argv) == 0 {
-		return openWindow(home)
+		return app.Run(home, os.Getenv("HC_SESSION"))
 	}
 	switch argv[0] {
 	case "-h", "--help", "help":
@@ -54,11 +51,13 @@ func run(argv []string, out io.Writer) error {
 		fmt.Fprintln(out, "shiori", version)
 		return nil
 	case "commands":
-		return printJSON(out, commands)
+		return printJSON(out, app.Commands())
 	case "ls":
-		return printReply(out, home, request{Ls: true})
+		b, err := app.Ls(home)
+		return printReply(out, b, err)
 	case "status":
-		return printReply(out, home, request{Status: true})
+		b, err := app.Status(home)
+		return printReply(out, b, err)
 	case "do":
 		if len(argv) < 2 {
 			return fmt.Errorf("do needs a command; see shiori commands")
@@ -67,7 +66,8 @@ func run(argv []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return printReply(out, home, request{Do: argv[1], Args: v})
+		b, err := app.Do(home, argv[1], v)
+		return printReply(out, b, err)
 	}
 	return fmt.Errorf("unknown command %q\n\n%s", argv[0], usage)
 }
@@ -101,8 +101,8 @@ func parseArgs(list []string) (map[string]any, error) {
 	return v, nil
 }
 
-func printReply(out io.Writer, home string, req request) error {
-	b, err := ask(home, req)
+// printReply prints the open window's answer, indented.
+func printReply(out io.Writer, b json.RawMessage, err error) error {
 	if err != nil {
 		return err
 	}
@@ -117,45 +117,4 @@ func printJSON(out io.Writer, v any) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
-}
-
-func openWindow(home string) error {
-	// A second launch raises the open window.
-	if _, err := ask(home, request{Raise: true}); err == nil {
-		return nil
-	}
-	if err := terminal.Load(); err != nil {
-		return fmt.Errorf("cannot load the terminal emulator (libghostty-vt): %w", err)
-	}
-	a := newApp(home, os.Getenv("HC_SESSION"))
-	l, err := a.listen()
-	if err != nil {
-		return err
-	}
-	defer l.Close()
-	mygo.App.WhenReady(func() {
-		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:           "Shiori",
-			Width:           1280,
-			Height:          820,
-			MinWidth:        640,
-			MinHeight:       400,
-			StateKey:        "main",
-			TitleBarStyle:   mygo.TitleBarHidden,
-			BackgroundColor: hexOf(a.k.canvas),
-			Content:         ui.View(a.view),
-		})
-		_ = a.win.SetIcon(iconPNG) // packages carry it too; this covers go run and plain builds
-		a.win.OnClosed(func() {
-			a.shutdown()
-			a.win = nil
-		})
-		a.start()
-	})
-	mygo.App.OnWindowAllClosed(func() {
-		if runtime.GOOS != "darwin" {
-			mygo.App.Quit()
-		}
-	})
-	return mygo.App.Run()
 }

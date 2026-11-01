@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -154,9 +154,9 @@ func newApp(home, session string) *App {
 	return a
 }
 
-// defaultHome is where the app keeps its files: $SHIORI_HOME, else
+// DefaultHome is where the app keeps its files: $SHIORI_HOME, else
 // ~/.config/shiori.
-func defaultHome() string {
+func DefaultHome() string {
 	if h := os.Getenv("SHIORI_HOME"); h != "" {
 		return h
 	}

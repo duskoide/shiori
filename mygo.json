@@ -1,6 +1,8 @@
 {
   "name": "Shiori",
   "identifier": "dev.duskoide.shiori",
+  "main": "./cmd/shiori",
+  "icon": "assets/icon.png",
   "version": "0.1.0",
   "out": "build",
   "linux": {

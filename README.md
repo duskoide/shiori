@@ -1,4 +1,4 @@
-<p align="center"><img src="resources/logo.svg" width="128" alt="栞"></p>
+<p align="center"><img src="assets/logo.svg" width="128" alt="栞"></p>
 
 # Shiori 栞
 
@@ -61,14 +61,16 @@ selects the herdr-core session.
 
 | Path | What |
 | --- | --- |
-| `*.go` (package main) | the window: state, sync with the core, views, commands, control socket |
+| `cmd/shiori` | the command: opens the window, or talks to the open one (`ls`, `status`, `do`) |
+| `internal/app` | the window: state, sync with the core, views, commands, control socket |
 | `internal/core` | herdr-core client: framing, RPC, events, terminal streams |
 | `internal/layout` | the shared layout document: model, edits, geometry |
 | `internal/agent` | agent status words and attention |
 | `internal/theme`, `internal/programs`, `internal/keys` | themes, program table and icons, key bindings |
 | `docs/PROTOCOL.md` | notes on the core's wire protocol |
 | `docs/CONTRACTS.md` | the packages' public APIs |
-| `resources/`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
+| `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
+| `bench` | the performance comparison with herdr-app |
 
 ## Tests
 
@@ -77,8 +79,8 @@ real window headlessly against an isolated core session
 (`HC_SESSION=shiori-it`):
 
 ```sh
-CGO_ENABLED=0 go test -c -o /tmp/hm.test .
-SHIORI_IT=1 SHIORI_SHOTS=/tmp/shots /tmp/hm.test -test.run TestIntegration -test.v
+CGO_ENABLED=0 go test -c -o /tmp/shiori-app.test ./internal/app
+SHIORI_IT=1 SHIORI_SHOTS=/tmp/shots /tmp/shiori-app.test -test.run TestIntegration -test.v
 ```
 
 ## License
