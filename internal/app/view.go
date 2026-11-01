@@ -26,14 +26,21 @@ func (a *App) view(c *ui.Context) {
 		}
 		ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Background(k.canvas).Children(func() {
 			a.tabBar(c, k)
-			ui.Column(c).Grow(1).MinHeight(0).Padding(paneGap).Children(func() {
-				a.workArea(c, k)
+			ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Padding(paneGap).Children(func() {
+					a.workArea(c, k)
+				})
+				if a.cfg.changesShown() {
+					a.changesDivider(c, k)
+					a.changesPanel(c, k)
+				}
 			})
 			a.statusBar(c, k)
 		})
 	})
 	a.shortcuts(c)
 	a.syncFocus()
+	a.syncChanges()
 	a.nextDialog()
 	a.paletteView(c, k)
 	a.promptView(c, k)

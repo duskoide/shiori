@@ -178,3 +178,25 @@ func (m *Manifest) Keymap(id string) (*keys.Keymap, error) // its default keys; 
 func Resolve(dir string, argv []string) []string // "./x" in the mod's folder
 func ValidID(id string) bool
 ```
+
+## internal/changes
+
+The files being changed in a folder: in a git work tree, `git status`
+(what differs from the last commit, and new files); elsewhere, a walk for
+files modified in the last day. No cgo, no file notifications: it polls.
+
+```go
+type Kind int // Modified, Added, Deleted, Renamed, Untracked, Changed (outside git)
+func (k Kind) Letter() string // "M", "A", "D", "R", "U"
+type File struct { Path, OldPath string; Kind Kind; Time time.Time } // paths relative to the folder
+type Snapshot struct { Folder string; Git bool; Root string; Files []File; Truncated bool; Err error; Took time.Duration }
+type Options struct { Recent time.Duration; MaxFiles int; NoGit bool } // a day; 20000; walk even in git
+func Scan(ctx context.Context, folder string, prev *Snapshot, opt Options) Snapshot // most recent first
+func Same(a, b Snapshot) bool
+var Interval = 2 * time.Second // a Watcher's least wait; a slow scan waits 5× its time
+func Watch(folder string, opt Options, changed func(Snapshot)) *Watcher // changed: each scan that differs
+func (w *Watcher) Folder() string
+func (w *Watcher) Refresh()
+func (w *Watcher) Stop()
+func Since(now, t time.Time) string // "now", "<1m", "5m", "3h", "2d"
+```
