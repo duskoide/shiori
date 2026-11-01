@@ -9,6 +9,7 @@ import (
 
 	"github.com/duskoide/shiori/internal/core"
 	"github.com/duskoide/shiori/internal/layout"
+	"github.com/duskoide/shiori/internal/recovery"
 )
 
 // start connects to the core in the background, and again whenever the
@@ -34,6 +35,11 @@ func (a *App) shutdown() {
 	}
 	a.flushSettings()
 	a.drain()
+	a.writeSnapshot()
+	if a.rc.timer != nil {
+		a.rc.timer.Stop()
+		a.rc.timer = nil
+	}
 	if a.stop != nil {
 		a.stop()
 	}
@@ -97,6 +103,8 @@ func (a *App) session1(ctx context.Context) error {
 		return err
 	}
 	defer cl.Close()
+	// Which core process this is tells a restarted core from the one before.
+	proc := coreStatus(ctx, cl)
 	// Subscribe before reading the document, so no change falls between.
 	ev, err := cl.Subscribe(ctx)
 	if err != nil {
@@ -108,7 +116,7 @@ func (a *App) session1(ctx context.Context) error {
 	}
 	terms := ev.Terminals()
 	a.post(func() {
-		a.connectedTo(cl, terms)
+		a.connectedTo(cl, terms, proc)
 		a.remoteDoc(value, version)
 	})
 	for {
@@ -143,9 +151,10 @@ func docGet(ctx context.Context, be backend) (json.RawMessage, uint64, error) {
 	return be.DocGet(ctx, docName, "")
 }
 
-func (a *App) connectedTo(cl *core.Client, terms []core.Terminal) {
+func (a *App) connectedTo(cl *core.Client, terms []core.Terminal, proc recovery.Core) {
 	a.sy.gen++
 	a.client, a.core = cl, cl
+	a.connectedCore(proc)
 	a.connected, a.connErr = true, ""
 	// Edits a lost connection kept from the core go out again.
 	if a.loaded && !layout.Equal(a.doc, a.base) {
@@ -162,6 +171,7 @@ func (a *App) disconnected(why string) {
 	a.saving = false
 	clear(a.sy.checking)
 	clear(a.sy.adopting)
+	clear(a.rc.lost)
 	// The streams end with the connection; terminals attach again once
 	// it is back, each to a fresh screen.
 	for addr, pt := range a.terms {
@@ -181,7 +191,13 @@ func (a *App) setTerminals(list []core.Terminal) {
 
 // remoteDoc takes a version of the document the core has.
 func (a *App) remoteDoc(value json.RawMessage, version uint64) {
-	if a.loaded && version <= a.version {
+	// A connection's first document may be older than ours: a new core
+	// that lost the documents counts from 0 again.
+	first := a.sy.docGen != a.sy.gen
+	if a.loaded && version <= a.version && !(first && version < a.version) {
+		if first && version == a.version {
+			a.sy.docGen = a.sy.gen
+		}
 		return
 	}
 	if a.saving || a.dragging {
@@ -190,10 +206,23 @@ func (a *App) remoteDoc(value json.RawMessage, version uint64) {
 		a.refetch = true
 		return
 	}
+	a.sy.docGen = a.sy.gen
 	d, err := layout.Decode(value)
 	if err != nil {
 		a.connErr = "layout unavailable: " + err.Error()
 		return
+	}
+	if version == 0 && len(d.Spaces) == 0 {
+		if r := a.restoreLayout(); r != nil {
+			// A new core without the layout: put back the one kept here.
+			a.doc, a.base, a.version, a.loaded = r, d, 0, true
+			a.dirty = true
+			a.notify("herdr-core lost the layout: Shiori put back the one it kept")
+			a.fixView()
+			a.dropUnshown()
+			a.reconcile()
+			return
+		}
 	}
 	if a.loaded && !layout.Equal(a.doc, a.base) {
 		// Someone else saved first: their copy wins, as in herdr-app.
@@ -223,6 +252,7 @@ func (a *App) dropUnshown() {
 func (a *App) changed() {
 	a.dirty = true
 	a.fixView()
+	a.snapshotSoon()
 }
 
 // flush saves the document when it differs from the core's: one save in
@@ -353,8 +383,21 @@ func (a *App) reconcile() {
 					continue
 				}
 				addr := p.Content.Terminal
+				if a.rc.restoring[p.ID] {
+					continue
+				}
+				if was, lost := a.lostPane(p.ID, addr); lost {
+					// Its core stopped without it: it starts again below,
+					// and the pane stays.
+					a.markLost(p.ID, was)
+					continue
+				}
+				delete(a.rc.lost, p.ID)
 				rec, ok := a.terminals[addr]
 				switch {
+				case ok && rec.State == "finished" && a.restoreOn() && stoppedWithCore(rec):
+					// The core is going, and took it along: the pane waits
+					// for the next core, which starts it again.
 				case ok && rec.State == "finished":
 					t.RemovePane(p.ID)
 					edited = true
@@ -399,9 +442,11 @@ func (a *App) reconcile() {
 			a.startAdoption(rec)
 		}
 	}
+	a.startRestore()
 	if edited {
 		a.changed()
 	}
+	a.snapshotSoon()
 }
 
 // remote reports whether a terminal address is another machine's
@@ -543,6 +588,7 @@ func (a *App) adopt(rec core.Terminal) {
 // terminals in step. It belongs to the main thread.
 type syncState struct {
 	gen         int                  // counts connections, to drop replies from lost ones
+	docGen      int                  // the connection the last document taken came on
 	saveDone    chan struct{}        // closed when the latest save's call returned
 	saveFails   int                  // saves failed in a row, not for a conflict
 	saveAfter   time.Time            // no save before then

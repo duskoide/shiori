@@ -134,7 +134,8 @@ func (a *App) show(paneID string) bool {
 
 // record is the core's record of a pane's terminal.
 func (a *App) record(p *layout.Node) (core.Terminal, bool) {
-	if p == nil || p.Content == nil || p.Content.Terminal == "" {
+	if p == nil || p.Content == nil || p.Content.Terminal == "" || a.isLost(p.ID) {
+		// A lost terminal's address may be another terminal's now.
 		return core.Terminal{}, false
 	}
 	t, ok := a.terminals[p.Content.Terminal]
@@ -145,6 +146,11 @@ func (a *App) record(p *layout.Node) (core.Terminal, bool) {
 func (a *App) cwdOf(p *layout.Node) string {
 	rec, ok := a.record(p)
 	if !ok {
+		if p != nil {
+			if was, lost := a.rc.lost[p.ID]; lost {
+				return was.Cwd
+			}
+		}
 		return ""
 	}
 	if rec.Foreground != nil && rec.Foreground.Cwd != "" {
