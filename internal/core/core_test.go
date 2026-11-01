@@ -716,3 +716,17 @@ func TestAutoStartPump(t *testing.T) {
 		t.Fatal("expected error for missing binary")
 	}
 }
+
+func TestBundledBinaryDirs(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip(err)
+	}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = r
+	}
+	want := filepath.Join(filepath.Dir(filepath.Dir(exe)), "libexec", "shiori")
+	if got := bundledBinaryDirs(); len(got) != 1 || got[0] != want {
+		t.Fatalf("bundledBinaryDirs() = %v, want [%s]", got, want)
+	}
+}
