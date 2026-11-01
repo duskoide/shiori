@@ -47,6 +47,9 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 		Theme:     k.terminalTheme(),
 		DarkTheme: k.terminalTheme(),
 		Padding:   terminal.Padding{X: 10, Y: 6},
+		// herdr-app's cursor does not blink, and a blinking one redraws
+		// the window twice a second.
+		NoBlink: true,
 		OnExit: func(int) {
 			a.post(func() { a.termEnded(pt) })
 		},
