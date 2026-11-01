@@ -1,6 +1,7 @@
 # Mods — design
 
-Status: proposal. Nothing here is built yet.
+Status: accepted, not built yet. The keymap rule (mods' keys, `none`) and
+the `mods` key of `settings.json` are agreed as written below.
 
 A mod adds commands to Shiori and reacts to what happens in the window. It
 is a folder with a manifest and a program; the program runs outside the
@@ -349,14 +350,19 @@ Settings page through `ui.Tester`, as the panel's tests do now.
   known mods.
 - **Permissions**, if mods from people you do not know become common.
 
+## Decisions
+
+- **The keymap rule** is as in [Key bindings](#key-bindings): defaults,
+  then mods' keys on free chords, then `keys.json`, with `none` removing a
+  default.
+- **`settings.json` gets `mods`**, as in [Turning mods on](#turning-mods-on),
+  with its controls on the Mods page.
+- **herdr-app is not a constraint.** Shiori does not need to stay
+  compatible with herdr-app's handling of `keys.json` or `settings.json`,
+  nor run herdr-app's own mods (the layout's `mod` blocks, `mod:<name>`
+  key sections). Those stay as they are today: kept, not used.
+
 ## Open questions
 
-- **herdr-app's mods.** herdr-app has mods of its own (the layout's `mod`
-  blocks, the `mod:<name>` key sections, `tab.new`'s `mod` argument). This
-  design does not try to run them; doing so needs their format, which is
-  not in this repository. Mod ids should avoid names herdr-app uses.
-- **`none` in `keys.json`.** herdr-app reads the same file. Whether it
-  accepts `none` (or ignores it) needs checking against herdr-app before
-  step 4.
 - **Windows.** The control socket is a Unix socket. Windows has them since
   Windows 10, but the rest of the window has not been tried there.
