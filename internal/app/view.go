@@ -34,6 +34,7 @@ func (a *App) view(c *ui.Context) {
 	})
 	a.shortcuts(c)
 	a.syncFocus()
+	a.nextDialog()
 	a.paletteView(c, k)
 	a.promptView(c, k)
 	a.confirmView(c, k)

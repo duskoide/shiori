@@ -70,6 +70,17 @@ func (v args) int(name string) (int, bool) {
 	return 0, false
 }
 
+// given reports whether an argument has a value: not missing, not blank.
+func given(x any) bool {
+	switch y := x.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(y) != ""
+	}
+	return true
+}
+
 func arg(name string) argDef      { return argDef{Name: name} }
 func required(name string) argDef { return argDef{Name: name, Required: true} }
 
@@ -115,6 +126,10 @@ func init() {
 		{Name: "app.settings", Title: "Settings", About: "Open the settings, at section appearance, terminal, layout, keyboard or files", Args: []argDef{arg("section")}, run: (*App).cmdAppSettings},
 		{Name: "app.reload", Title: "Reload settings", About: "Read settings.json and keys.json again; the window also does it when they change", run: func(a *App, _ args) (any, error) { a.reloadConfig(true); return nil, nil }},
 		{Name: "app.theme", Title: "Theme", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdAppTheme},
+		{Name: "app.notify", Title: "Show a message", About: "A toast; level is info or error", Args: []argDef{required("text"), arg("level")}, hidden: true, run: (*App).cmdAppNotify},
+		{Name: "app.ask", Title: "Ask for text", About: "Answers {value} or {cancelled} once the person does", Args: []argDef{required("title"), arg("value"), arg("placeholder"), arg("hint")}, hidden: true, run: (*App).cmdAppAsk},
+		{Name: "app.confirm", Title: "Ask yes or no", About: "Answers {ok} once the person does; yes labels the button", Args: []argDef{required("title"), arg("detail"), arg("yes")}, hidden: true, run: (*App).cmdAppConfirm},
+		{Name: "app.pick", Title: "Pick from a list", About: "items: [{id, title, detail}] or strings; answers {id} or {cancelled}", Args: []argDef{required("items"), arg("title"), arg("placeholder")}, hidden: true, run: (*App).cmdAppPick},
 		{Name: "app.zoom_in", Title: "Zoom in", run: func(a *App, _ args) (any, error) { a.zoomBy(1); return nil, nil }},
 		{Name: "app.zoom_out", Title: "Zoom out", run: func(a *App, _ args) (any, error) { a.zoomBy(-1); return nil, nil }},
 		{Name: "app.zoom_reset", Title: "Reset zoom", run: func(a *App, _ args) (any, error) { a.zoomBy(0); return nil, nil }},
@@ -188,7 +203,7 @@ func (a *App) do(name string, v args) (any, error) {
 		return nil, fmt.Errorf("unknown argument(s): %s; valid arguments: %s", strings.Join(unknown, ", "), strings.Join(valid, ", "))
 	}
 	for _, d := range c.Args {
-		if d.Required && v.str(d.Name) == "" {
+		if d.Required && !given(v[d.Name]) {
 			return nil, fmt.Errorf("%s needs %s", name, d.Name)
 		}
 	}

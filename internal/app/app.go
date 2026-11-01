@@ -101,6 +101,7 @@ type App struct {
 	// waiting for an answer that can be cancelled.
 	extra   []*command
 	waiting map[*deferred]bool
+	dialogs []*queuedDialog // the dialog commands' dialogs, in line
 
 	// Overlays.
 	palette  paletteState
