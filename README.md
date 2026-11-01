@@ -118,6 +118,7 @@ The panel writes the files as you change things, and
 | `internal/theme`, `internal/programs`, `internal/keys` | themes, program table and icons, key bindings |
 | `docs/PROTOCOL.md` | notes on the core's wire protocol |
 | `docs/CONTRACTS.md` | the packages' public APIs |
+| `docs/MODS.md` | the design of mods (accepted, not built yet) |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
 | `bench` | the performance comparison with herdr-app |
 
