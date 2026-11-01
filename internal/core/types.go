@@ -147,6 +147,17 @@ type Machine struct {
 	Via       bool   `json:"via"`
 }
 
+// ServerStatus is the core's server.status: which process serves, and
+// for how long it has.
+type ServerStatus struct {
+	Core     string `json:"core"`
+	Version  string `json:"version"`
+	Pid      int    `json:"pid"`
+	UptimeMs int64  `json:"uptime_ms"`
+	Live     int    `json:"live"`
+	Finished int    `json:"finished"`
+}
+
 // Change is a coalesced notification from the event stream.
 type Change struct {
 	// Docs: a document changed (or events were missed): re-read documents.

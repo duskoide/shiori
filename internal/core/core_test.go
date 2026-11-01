@@ -477,6 +477,17 @@ func TestHelpers(t *testing.T) {
 	if len(ms) != 1 || ms[0].Name != "mac" || ms[0].State != "connected" || ms[0].SinceMs != 5 || !ms[0].Via {
 		t.Fatalf("%+v", ms)
 	}
+
+	var st ServerStatus
+	run(func() (err error) { st, err = c.Status(ctx); return }, func(cl call) {
+		if cl.Method != "server.status" {
+			t.Fatal(cl.Method)
+		}
+		f.reply(cl.ID, map[string]any{"core": "abc", "version": "0.1.16", "pid": 4242, "uptime_ms": 90000, "live": 3, "finished": 1})
+	})
+	if st.Pid != 4242 || st.UptimeMs != 90000 || st.Live != 3 || st.Version != "0.1.16" {
+		t.Fatalf("%+v", st)
+	}
 }
 
 func TestDisplayJSON(t *testing.T) {
