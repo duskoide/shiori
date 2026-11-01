@@ -1,8 +1,11 @@
-# Remote machines — plan
+# Remote machines
 
-Status: phases 0 to 5 done (below). Branch `remote-machines`
-(from `main` at `0a8c145`). Reference: herdr-app, public at
+Status: built (phases 0 to 6 below); phase 7, trying it on real machines
+with the owner, is left. Branch `remote-machines` (from `main` at
+`0a8c145`). Reference: herdr-app, public at
 https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
+How to use it: README, "Work on another machine". What follows is the
+plan as it was written, with each phase's notes of what was done.
 
 Goal: Shiori shows and works with the spaces, tabs and terminals of other
 machines that herdr-core is connected to, as herdr-app does, beside this
@@ -15,7 +18,7 @@ remote machines and learn to read, write and show them.
   committer (`git -c user.name=… -c user.email=… commit`). No
   `Co-Authored-By`, no session or tool trailers, nothing naming an AI.
 - Meaningful branch names. Do not open pull requests; push the branch.
-  The owner merges, or says so when he wants it merged into `main`.
+  The owner merges, or says so when they want it merged into `main`.
 - One commit per phase below, each passing `make check` (vet, tests,
   gofmt) and `CGO_ENABLED=1 go test -race` on the packages it touches.
 - Every setting a file holds is shown and changeable in the settings
@@ -295,10 +298,11 @@ machine leaves the list, its spaces go from the window.
    service's `command.run` context. `pathOn` and `folderName` shorten
    only this machine's paths; agents of another machine read
    `mac · space`.
-6. **Docs.** README (features; Machines page; "Work on another machine"),
-   docs/PROTOCOL.md (the `hc` commands above), docs/CONTRACTS.md (layout
-   and core additions), docs/MODS.md (events). Screenshots checked by eye
-   (`ui.Tester` image to PNG, then read it).
+6. **Docs.** Done: README (features, "Work on another machine", the
+   note under Files, the Machines page), docs/PROTOCOL.md §4.14 (the `hc`
+   commands and the remote launch), docs/CONTRACTS.md (core, layout,
+   changes), docs/MODS.md (`SHIORI_MACHINE`, `machine` in events,
+   `machine.changed`). Screenshots checked by eye.
 7. **On real machines** (with the owner): add the Proxmox node and the
    workstation; spaces, terminals, agents, reconnects, removal.
 

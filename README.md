@@ -22,7 +22,10 @@ herdr-app can show the same spaces side by side.
 - Command palette, rename and confirm dialogs, theme presets
 - A settings panel (`Ctrl+,`) for everything in `settings.json` and
   `keys.json`: theme, terminal font and size, sidebar, every key
-  binding, recorded by pressing the keys, and mods
+  binding, recorded by pressing the keys, mods and machines
+- Other machines: the spaces and terminals of machines herdr-core reaches
+  over SSH, beside this one's, each under its name in the sidebar; added
+  and managed in Settings → Machines (see "Work on another machine")
 - Mods: commands, keys and event handlers added by programs in any
   language, over the control socket (see [docs/MODS.md](docs/MODS.md) and
   `examples/mods`)
@@ -90,6 +93,34 @@ shiori do space.new --name api --folder ~/src/api
 Commands herdr-app has but this app does not implement answer
 "<name> is not supported by this app".
 
+## Work on another machine
+
+Shiori shows another machine's spaces and runs its terminals there, as
+herdr-app does: herdr-core on this machine reaches the other over SSH,
+and the other needs herdr-core (`hc`) too; Shiori there is optional. The
+window still runs here.
+
+1. Open Settings → Machines (or click the machines in the status bar).
+2. Type how SSH reaches it (`user@host`), or pick a host of your
+   `~/.ssh/config`, and Add. Your SSH keys are used. When SSH needs an
+   answer (a password, a host key) or herdr-core is missing there, the
+   adding goes on in a tab where you answer; the machine shows once it
+   is added.
+3. Its spaces show under its name in the sidebar; its `+` makes a space
+   there, starting in its home. Tabs and splits of its spaces run there,
+   agents in that machine's login shell.
+
+Each machine keeps its own layout, so herdr-app and Shiori on any machine
+show the same spaces. A machine that disconnects keeps its spaces shown,
+greyed; edits of them are saved once it is back. Removing a machine
+leaves its terminals running there. Machines added with `hc machine add
+--temp` (agents' sandboxes) stay out of the window. The changes panel of
+another machine's space asks git there.
+
+From the CLI: `shiori do machine.list`, `machine.add --target me@box`,
+`machine.rename`, `machine.remove`, `machine.update`, `machine.login`,
+and `space.new --machine box`.
+
 ## Updating
 
 ```sh
@@ -134,6 +165,9 @@ selects the herdr-core session.
 | `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
 | `mods/<id>/mod.json` | | a mod: see [docs/MODS.md](docs/MODS.md) | Mods |
 
+Machines are herdr-core's (`hc machine ls`), not Shiori's: no file here
+holds them, and Settings → Machines is where they are managed.
+
 The panel writes the files as you change things, and
 `shiori do app.settings --section keyboard` opens it at a section
 (`appearance`, `terminal`, `layout`, `keyboard`, `mods`, `files`).
@@ -154,7 +188,7 @@ The panel writes the files as you change things, and
 | `internal/changes` | the files being changed in a folder, for the changes panel |
 | `internal/update` | new versions: the latest release, and installing one (`shiori update`) |
 | `docs/MODS.md` | mods: the manifest, the protocol, events |
-| `docs/REMOTE.md` | plan: other machines' spaces and terminals (not built yet) |
+| `docs/REMOTE.md` | other machines' spaces and terminals: how they work, and how they were built |
 | `examples/mods` | two mods: a one-shot command, and a service in Python |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
 | `bench` | the performance comparison with herdr-app |

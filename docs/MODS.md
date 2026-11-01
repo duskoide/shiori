@@ -110,6 +110,7 @@ directory and this environment:
 | `SHIORI_ARGS` | the arguments, a JSON object |
 | `SHIORI_SPACE`, `SHIORI_TAB`, `SHIORI_PANE` | the focused space, tab and pane ids |
 | `SHIORI_TERMINAL`, `SHIORI_CWD` | the focused pane's terminal and folder, when it has one |
+| `SHIORI_MACHINE` | the machine of the focused space, `""` for this one: `SHIORI_CWD` is a path there, and `hc exec --on "$SHIORI_MACHINE"` runs a program there |
 | `SHIORI_BIN` | the `shiori` executable, to run `"$SHIORI_BIN" do …` without it on `PATH` |
 | `HC_SESSION` | the herdr-core session, so `hc` reaches the same core |
 
@@ -181,17 +182,18 @@ only worked out while someone is subscribed.
 
 | Event | Data |
 | --- | --- |
-| `space.created`, `space.closed` | `{space, name, label, folder}`: `name` as given (maybe empty), `label` as shown |
+| `space.created`, `space.closed` | `{space, name, label, folder, machine}`: `name` as given (maybe empty), `label` as shown; `machine` (on `space.created`) is `""` for this one |
 | `space.renamed` | `{space, name, label}`, when `name` changes |
 | `tab.created`, `tab.closed` | `{space, tab, name, label}` |
 | `tab.renamed` | `{space, tab, name, label}`, when `name` changes |
 | `pane.created`, `pane.closed` | `{space, tab, pane, terminal}` |
-| `focus.changed` | `{space, tab, pane, terminal, cwd}` |
+| `focus.changed` | `{space, tab, pane, terminal, cwd, machine}` |
 | `window.focus` | `{focused}`: the window got or lost the keyboard focus |
 | `agent.status` | `{pane, terminal, app, status, previous}`; status is `working`, `blocked`, `done` or `idle`, as `shiori ls` says it |
 | `settings.changed` | `{theme, font, font_size, sidebar}` |
 | `keys.changed` | `{}` |
 | `connection` | `{connected, error}`: herdr-core came or went |
+| `machine.changed` | `{name, state, why, previous, connected}`: another machine was added or changed state (`connected`, `needs_login`, `needs_update`, …); `state` is `removed` when it left |
 
 Events are numbered (`seq`) per window. Each connection has a buffer of
 256 events; a client that falls further behind loses the oldest and gets
