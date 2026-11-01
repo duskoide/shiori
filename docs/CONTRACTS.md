@@ -33,6 +33,8 @@ func (c *Client) Get(ctx, address string) (Terminal, error)
 func (c *Client) DocGet(ctx, name, on string) (value json.RawMessage, version uint64, err error)
 func (c *Client) DocSet(ctx, name, on string, version uint64, value json.RawMessage) (newVersion uint64, err error) // Kind "conflict" on CAS failure
 func (c *Client) Machines(ctx) ([]Machine, error)
+type ServerStatus struct { Core, Version string; Pid int; UptimeMs int64; Live, Finished int }
+func (c *Client) Status(ctx) (ServerStatus, error) // server.status: which core process serves
 
 type Terminal struct {
     Address, State, Cwd, Title string; Name, Parent *string; Argv []string
@@ -233,6 +235,29 @@ func (w *Watcher) Refresh()
 func (w *Watcher) SetIdle(idle bool) // 5× slower (10s at least) while nobody looks; scans at once when looked at again
 func (w *Watcher) Stop()
 func Since(now, t time.Time) string // "now", "<1m", "5m", "3h", "2d"; "" for a zero time (another machine's change seen before the first scan)
+```
+
+## internal/recovery
+
+The session snapshot (`session.json`) that brings panes back after
+herdr-core stopped without their terminals. Panes are keyed by id: a new
+core gives terminal addresses out again.
+
+```go
+const Version = 1
+type Core struct { Pid int; StartMs int64 }       // a core process
+func At(pid int, uptimeMs int64, now time.Time) Core
+func (c Core) Known() bool
+func (c Core) Same(o Core) bool                    // same pid, starts within 5 s
+type Pane struct { Terminal string; CreatedMs int64; Cwd string; Core Core }
+type Snapshot struct { Version int; SavedMs int64; Core Core; Layout json.RawMessage; Panes map[string]Pane }
+func FileName(session string) string              // session.json, session-<name>.json
+func Load(path string) (*Snapshot, error)         // missing = empty; newer version is an error
+func (s *Snapshot) Encode() ([]byte, error)
+func WriteFile(path string, b []byte) error       // temp file, fsync, rename; 0600
+// Lost: the pane showed addr under a core other than cur, and cur lists no
+// terminal there (or one created at another time).
+func (s *Snapshot) Lost(pane, addr string, cur Core, listed bool, createdMs int64) (Pane, bool)
 ```
 
 ## internal/update

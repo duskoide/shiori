@@ -113,3 +113,10 @@ func (c *Client) Machines(ctx context.Context) ([]Machine, error) {
 	}
 	return res.Machines, nil
 }
+
+// Status reports the core process: its pid and how long it has run.
+func (c *Client) Status(ctx context.Context) (ServerStatus, error) {
+	var s ServerStatus
+	err := c.Call(ctx, "server.status", map[string]any{}, &s)
+	return s, err
+}

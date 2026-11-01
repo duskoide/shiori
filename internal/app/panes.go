@@ -170,6 +170,11 @@ func (a *App) paneCard(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node, 
 					FontSize(12).TextColor(k.dim).Padding(12)
 				return
 			}
+			if a.isLost(p.ID) {
+				ui.Text(c, "herdr-core stopped, and this terminal with it. Starting a fresh shell in its folder…").
+					FontSize(12).TextColor(k.dim).Padding(12)
+				return
+			}
 			pt := a.termFor(c, p.Content.Terminal)
 			if pt == nil {
 				msg := "Attaching…"

@@ -85,6 +85,7 @@ type App struct {
 	seenTurns map[string]uint64    // the herdr.seen this window wrote, once the core took it
 	seenBusy  map[string]time.Time // herdr.seen writes in flight or to retry, no new one before then
 	sy        syncState
+	rc        recoveryState // terminals to start again after the core stopped (recovery.go)
 
 	// What this window looks at, which the document does not keep.
 	activeSpace string
@@ -155,6 +156,9 @@ type Settings struct {
 	Changes *bool `json:"changes,omitempty"`
 	// UpdateCheck false stops the daily look for a new version.
 	UpdateCheck *bool `json:"update_check,omitempty"`
+	// Restore false closes the panes whose terminals herdr-core lost when
+	// it stopped, instead of starting fresh shells in them.
+	Restore *bool `json:"restore,omitempty"`
 	// Mods are the mods turned on or off, by id.
 	Mods map[string]ModSetting `json:"mods,omitempty"`
 }
@@ -204,6 +208,7 @@ func newApp(home, session string) *App {
 		sidebarW:   sidebarWidth,
 	}
 	a.loadSettings()
+	a.loadSnapshot()
 	a.upd, a.updOpts = loadUpdateState(home), update.FromEnv()
 	a.reloadMods()
 	a.loadKeys()

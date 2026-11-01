@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/duskoide/shiori/internal/keys"
+	"github.com/duskoide/shiori/internal/recovery"
 	"github.com/duskoide/shiori/internal/theme"
 )
 
@@ -828,6 +829,23 @@ func (a *App) layoutPage(c *ui.Context, k *colors) {
 			a.post(a.toggleChanges)
 		}
 		fileNote(c, k, `settings.json  "changes"`)
+	})
+	settingsGroup(c, k, "Recovery", "When herdr-core stops without its terminals (a crash, a kill, a reboot), their programs end, but the layout stays. Shiori keeps "+recovery.FileName(a.session)+" so it can bring the panes back.", func() {
+		on := a.restoreOn()
+		overSwitch := false
+		row := settingRow(c, k, "Restore panes after herdr-core stops", "Each pane gets a fresh shell in the folder it last worked in, instead of closing. Programs and agents start anew.", func() {
+			v := on
+			sw := ui.Switch(c, &v).Label("Restore panes")
+			overSwitch = sw.Hovered()
+			if v != on {
+				a.post(func() { a.setRestore(v) })
+			}
+		})
+		row.Cursor(ui.CursorPointer).Label("Restore panes after herdr-core stops")
+		if row.Clicked() && !overSwitch {
+			a.post(func() { a.setRestore(!on) })
+		}
+		fileNote(c, k, `settings.json  "restore"`)
 	})
 }
 

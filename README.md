@@ -19,6 +19,10 @@ herdr-app can show the same spaces side by side.
 - A changes panel (`Ctrl+Shift+G`): the files being changed in the
   space's folder, most recent first (in git, what differs from the last
   commit); a click shows the diff
+- Session recovery, as herdr's: when herdr-core stops without its
+  terminals (a crash, a kill, a reboot), the panes stay where they were
+  and get fresh shells in the folders they last worked in, instead of
+  closing (see [Recovery](#recovery))
 - Command palette, rename and confirm dialogs, theme presets
 - A settings panel (`Ctrl+,`) for everything in `settings.json` and
   `keys.json`: theme, terminal font and size, sidebar, every key
@@ -142,11 +146,43 @@ about you or the machine. Turn it off in Settings → About, with
 `"update_check": false` in `settings.json`, or with
 `SHIORI_NO_UPDATE_CHECK=1`. Development builds (`0.1.0-dev`) do not look.
 
+## Recovery
+
+Terminals run in herdr-core and outlive the window, and survive a core
+update or restart in its holder processes. When the core stops without
+them (it crashes or is killed with its holders, `hc server stop`, the
+computer restarts), their programs end. The layout survives in the core's
+document, but its panes would point at terminals the new core never had,
+and close.
+
+So the window keeps `session.json` in its home (`session-<name>.json`
+for another `HC_SESSION`): the layout, and for each pane its terminal,
+the folder that worked in and the core process that ran it. It is
+written a second after things change and when the window closes, to a
+file beside it that then replaces it, so a crash cannot leave half of
+it.
+
+When the window connects to a core process other than the one the
+snapshot saw, each pane whose terminal that core does not have (or has
+given to another terminal) gets a fresh shell in the folder it last
+worked in, in the same place in the layout, after the core has run for
+three seconds (terminals that outlived the old core come back to the
+new one first). A folder that is gone falls back to the space's, then
+home. Programs and agents do not come back; start them again. If the new
+core has no layout at all (its documents were lost too), the window puts
+back the one it kept. Panes whose programs ended close as before. Only
+this machine's panes are brought back: other machines' terminals run in
+their own cores.
+
+Turn it off in Settings → Layout, or with `"restore": false` in
+`settings.json`: lost panes then close.
+
 ## Files
 
 `$SHIORI_HOME` (default `~/.config/shiori`) holds
-`settings.json`, `keys.json`, the `mods` folder, the control socket and
-`update.json` (when the window last looked for a new version). Files of the
+`settings.json`, `keys.json`, the `mods` folder, the control socket,
+`update.json` (when the window last looked for a new version) and
+`session.json` (what [recovery](#recovery) brings back). Files of the
 app's earlier name, `~/.config/herdr-mygo`, move there on first start. The window reads
 `settings.json` and `keys.json` again when they change (within about
 half a second), or on `shiori do app.reload`; a file that does not parse
@@ -161,6 +197,7 @@ selects the herdr-core session.
 | | `sidebar` | `false` hides the sidebar | Layout |
 | | `changes` | `true` shows the changes panel | Layout |
 | | `update_check` | `false` stops the daily look for a new version | About |
+| | `restore` | `false` closes the panes whose terminals herdr-core lost when it stopped, instead of starting fresh shells in them | Layout |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
 | `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
 | `mods/<id>/mod.json` | | a mod: see [docs/MODS.md](docs/MODS.md) | Mods |
@@ -181,6 +218,7 @@ The panel writes the files as you change things, and
 | `internal/core` | herdr-core client: framing, RPC, events, terminal streams |
 | `internal/layout` | the shared layout document: model, edits, geometry |
 | `internal/agent` | agent status words and attention |
+| `internal/recovery` | the session snapshot: what brings panes back after herdr-core stopped |
 | `internal/theme`, `internal/programs`, `internal/keys` | themes, program table and icons, key bindings |
 | `docs/PROTOCOL.md` | notes on the core's wire protocol |
 | `docs/CONTRACTS.md` | the packages' public APIs |
