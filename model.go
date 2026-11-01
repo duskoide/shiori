@@ -306,24 +306,41 @@ func (a *App) agents() []agentEntry {
 	return out
 }
 
-// lookedAt notes what the person looks at: the focused pane's agent is
-// seen, here and, once per turn, for every window (herdr.seen).
+// lookedAt notes what the person looks at: the agents of the panes drawn
+// on screen (every visible pane of the active tab, while the window has the
+// focus) are seen, here and, once per turn, for every window (herdr.seen).
 func (a *App) lookedAt() {
-	p := a.pane()
-	rec, ok := a.record(p)
-	if !ok || !a.focused {
+	t := a.tab()
+	if t == nil || !a.focused {
 		return
 	}
+	panes := t.Panes()
+	if z := a.zoomed[t.ID]; z != "" {
+		panes = slices.DeleteFunc(panes, func(p *layout.Node) bool { return p.ID != z })
+	}
+	for _, p := range panes {
+		if rec, ok := a.record(p); ok {
+			a.sawAgent(rec)
+		}
+	}
+}
+
+// sawAgent notes that the person looks at a terminal, and writes
+// herdr.seen when it is behind: when the label is missing, even at turn 0,
+// or the turn is past it. A write that fails is tried again.
+func (a *App) sawAgent(rec core.Terminal) {
 	a.localSeen[rec.Address] = true
 	if rec.Status == nil || a.core == nil {
 		return
 	}
-	st := rec.Status.State
-	if st == "working" || st == "blocked" || st == "error" {
+	switch rec.Status.State {
+	case "working", "blocked", "error":
 		return
 	}
-	seen := a.seenTurns[rec.Address]
-	if label, ok := rec.Labels["herdr.seen"]; ok {
+	addr := rec.Address
+	seen, written := a.seenTurns[addr]
+	label, labeled := rec.Labels["herdr.seen"]
+	if labeled {
 		var n uint64
 		for _, r := range label {
 			if r < '0' || r > '9' {
@@ -332,16 +349,29 @@ func (a *App) lookedAt() {
 			}
 			n = n*10 + uint64(r-'0')
 		}
-		seen = max(seen, n)
+		seen, written = max(seen, n), true
 	}
-	if rec.Turn <= seen {
+	if written && rec.Turn <= seen {
 		return
 	}
-	a.seenTurns[rec.Address] = rec.Turn
-	be, addr, labels := a.core, rec.Address, agent.SeenLabel(rec.Turn)
+	if until, ok := a.seenBusy[addr]; ok && time.Now().Before(until) {
+		return
+	}
+	a.seenBusy[addr] = time.Now().Add(10 * time.Second)
+	be, turn := a.core, rec.Turn
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		be.Label(ctx, addr, labels)
+		err := be.Label(ctx, addr, agent.SeenLabel(turn))
+		a.post(func() {
+			if err != nil {
+				// Tried again in a few seconds.
+				a.seenBusy[addr] = time.Now().Add(3 * time.Second)
+				time.AfterFunc(3*time.Second, a.invalidate)
+				return
+			}
+			delete(a.seenBusy, addr)
+			a.seenTurns[addr] = max(a.seenTurns[addr], turn)
+		})
 	}()
 }
