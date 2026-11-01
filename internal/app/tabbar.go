@@ -44,6 +44,17 @@ func (a *App) tabBar(c *ui.Context, k *colors) {
 			more.PopoverMenuButton(func(m *ui.Menu) { a.newMenu(m) })
 		})
 		ui.Spacer(c)
+		label := "Show changes"
+		if a.cfg.changesShown() {
+			label = "Hide changes"
+		}
+		ch := iconButton(c, k, "diff", label, 28, 15).Tooltip(withKeys(label, a.keysFor("layout.toggle:changes")))
+		if a.cfg.changesShown() {
+			ch.Background(k.selected)
+		}
+		if ch.Clicked() {
+			a.post(a.toggleChanges)
+		}
 	})
 }
 

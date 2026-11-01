@@ -115,6 +115,7 @@ type App struct {
 	confirm  *confirmState
 	settings bool
 	set      settingsState // the settings panel's own state
+	chg      changesState  // the changes panel
 	toasts   []toast
 
 	keymap  *keys.Keymap
@@ -141,6 +142,8 @@ type Settings struct {
 	Font     string  `json:"font,omitempty"`
 	FontSize float32 `json:"font_size,omitempty"`
 	Sidebar  *bool   `json:"sidebar,omitempty"`
+	// Changes shows the changes panel.
+	Changes *bool `json:"changes,omitempty"`
 	// Mods are the mods turned on or off, by id.
 	Mods map[string]ModSetting `json:"mods,omitempty"`
 }

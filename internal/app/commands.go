@@ -119,7 +119,8 @@ func init() {
 		{Name: "terminal.park", Title: "Park terminal", About: "Take a terminal's pane away; it keeps running", Args: []argDef{required("terminal")}, hidden: true, run: (*App).cmdTerminalPark},
 		{Name: "terminal.kill", Title: "Kill terminal", Args: []argDef{required("terminal")}, hidden: true, run: (*App).cmdTerminalKill},
 		{Name: "terminal.pin", Title: "Pin agent", Args: []argDef{required("terminal"), required("pinned")}, hidden: true, run: (*App).cmdTerminalPin},
-		{Name: "layout.toggle", Title: "Toggle sidebar", Args: []argDef{arg("id")}, run: (*App).cmdLayoutToggle},
+		{Name: "layout.toggle", Title: "Toggle sidebar", About: "Show or hide the sidebar, or with id changes the changes panel", Args: []argDef{arg("id")}, run: (*App).cmdLayoutToggle},
+		{Name: "layout.toggle:changes", Title: "Toggle changes", About: "Show or hide the files being changed in the space's folder", run: func(a *App, _ args) (any, error) { return a.cmdLayoutToggle(args{"id": "changes"}) }},
 		{Name: "mod.open", Title: "Open", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdModOpen},
 		{Name: "app.palette", Title: "Command palette", run: func(a *App, _ args) (any, error) { a.openPalette(""); return nil, nil }},
 		{Name: "app.help", Title: "Keyboard shortcuts", run: func(a *App, _ args) (any, error) { a.openPalette(""); return nil, nil }},
@@ -1099,8 +1100,13 @@ func (a *App) cmdTerminalPin(v args) (any, error) {
 }
 
 func (a *App) cmdLayoutToggle(v args) (any, error) {
-	if id := v.str("id"); id != "" && id != "sidebar" {
-		return nil, fmt.Errorf("only the sidebar toggles in this layout")
+	switch id := v.str("id"); id {
+	case "", "sidebar":
+	case "changes":
+		a.toggleChanges()
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("only the sidebar and the changes panel toggle in this layout")
 	}
 	shown := !a.cfg.sidebarShown()
 	a.cfg.Sidebar = &shown

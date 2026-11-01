@@ -16,6 +16,9 @@ herdr-app can show the same spaces side by side.
 - Terminals rendered with libghostty-vt through MyGo's terminal plugin
 - Agent status (OSC 7501: working, blocked, done) in the sidebar, tabs
   and status bar, with herdr.seen read tracking
+- A changes panel (`Ctrl+Shift+G`): the files being changed in the
+  space's folder, most recent first (in git, what differs from the last
+  commit); a click shows the diff
 - Command palette, rename and confirm dialogs, theme presets
 - A settings panel (`Ctrl+,`) for everything in `settings.json` and
   `keys.json`: theme, terminal font and size, sidebar, every key
@@ -103,6 +106,7 @@ selects the herdr-core session.
 | | `font` | the terminals' font family, or a comma-separated list | Terminal |
 | | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |
+| | `changes` | `true` shows the changes panel | Layout |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
 | `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
 | `mods/<id>/mod.json` | | a mod: see [docs/MODS.md](docs/MODS.md) | Mods |
@@ -124,6 +128,7 @@ The panel writes the files as you change things, and
 | `docs/PROTOCOL.md` | notes on the core's wire protocol |
 | `docs/CONTRACTS.md` | the packages' public APIs |
 | `internal/mods` | mods' manifests |
+| `internal/changes` | the files being changed in a folder, for the changes panel |
 | `docs/MODS.md` | mods: the manifest, the protocol, events |
 | `examples/mods` | two mods: a one-shot command, and a service in Python |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |

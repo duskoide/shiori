@@ -798,6 +798,23 @@ func (a *App) layoutPage(c *ui.Context, k *colors) {
 		fileNote(c, k, `settings.json  "sidebar"`)
 		ui.Text(c, "Drag the sidebar's edge to resize it; double-click the edge for its first width.").FontSize(12).TextColor(k.muted)
 	})
+	settingsGroup(c, k, "Changes", "", func() {
+		shown := a.cfg.changesShown()
+		overSwitch := false
+		row := settingRow(c, k, "Show the changes panel", withKeys("The files being changed in the space's folder, on the right: in git, what differs from the last commit.", a.keysFor("layout.toggle:changes")), func() {
+			on := shown
+			sw := ui.Switch(c, &on).Label("Changes panel shown")
+			overSwitch = sw.Hovered()
+			if on != shown {
+				a.post(a.toggleChanges)
+			}
+		})
+		row.Cursor(ui.CursorPointer).Label("Show the changes panel")
+		if row.Clicked() && !overSwitch {
+			a.post(a.toggleChanges)
+		}
+		fileNote(c, k, `settings.json  "changes"`)
+	})
 }
 
 // --- Keyboard ---------------------------------------------------------
@@ -1105,6 +1122,9 @@ func (a *App) settingsSummary() string {
 		if m.Enabled {
 			on++
 		}
+	}
+	if a.cfg.changesShown() {
+		sidebar += ", changes shown"
 	}
 	return fmt.Sprintf("%s theme, %s at %g pt, %s, %s on.", themeName, font, a.cfg.fontSize(), sidebar, plural(on, "mod", "mods"))
 }

@@ -27,6 +27,7 @@ func (a *App) start() {
 func (a *App) shutdown() {
 	a.cancelWaiting()
 	a.stopServices()
+	a.stopChanges()
 	a.flushSettings()
 	a.drain()
 	if a.stop != nil {
