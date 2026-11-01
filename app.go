@@ -70,6 +70,7 @@ type App struct {
 	spawning  map[string]int       // tabs whose terminals are starting here
 	gone      map[string]bool      // terminals whose panes were closed here
 	seenTurns map[string]uint64    // the herdr.seen this window last wrote
+	sy        syncState
 
 	// What this window looks at, which the document does not keep.
 	activeSpace string
