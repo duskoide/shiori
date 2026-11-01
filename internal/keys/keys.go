@@ -253,3 +253,104 @@ func (k *Keymap) KeysFor(command string) []string {
 	}
 	return out
 }
+
+// Spec formats the chord in herdr's syntax, as keys.json writes it:
+// "ctrl-shift-t", "alt-[", "ctrl--", "f2". ParseChord reads it back.
+func (c Chord) Spec() string {
+	var b strings.Builder
+	for _, m := range []struct {
+		on   bool
+		name string
+	}{{c.Ctrl, "ctrl"}, {c.Alt, "alt"}, {c.Shift, "shift"}, {c.Super, "super"}} {
+		if m.on {
+			b.WriteString(m.name)
+			b.WriteByte('-')
+		}
+	}
+	b.WriteString(c.Key)
+	return b.String()
+}
+
+// Spec formats the action as keys.json writes it: "terminal",
+// "send:<text>", "command" or "command:arg". ParseAction reads it back.
+func (a Action) Spec() string {
+	switch {
+	case a.Terminal:
+		return "terminal"
+	case a.Command == "":
+		return "send:" + a.Send
+	case a.Arg != "":
+		return a.Command + ":" + a.Arg
+	}
+	return a.Command
+}
+
+// Clone returns a copy of the keymap that shares nothing with it.
+func (k *Keymap) Clone() *Keymap {
+	out := &Keymap{Sections: make(map[string]map[Chord]Action, len(k.Sections))}
+	for s, m := range k.Sections {
+		cp := make(map[Chord]Action, len(m))
+		for c, a := range m {
+			cp[c] = a
+		}
+		out.Sections[s] = cp
+	}
+	return out
+}
+
+// Encode writes the keymap as a keys.json document, sections and chords
+// sorted, which Parse reads back to an equal keymap.
+func (k *Keymap) Encode() ([]byte, error) {
+	raw := make(map[string]map[string]string, len(k.Sections))
+	for s, m := range k.Sections {
+		sec := make(map[string]string, len(m))
+		for c, a := range m {
+			sec[c.Spec()] = a.Spec()
+		}
+		raw[s] = sec
+	}
+	b, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(b, '\n'), nil
+}
+
+// Bind binds c to a in section, creating the section, and returns the
+// action c was bound to before, if any.
+func (k *Keymap) Bind(section string, c Chord, a Action) (Action, bool) {
+	if k.Sections == nil {
+		k.Sections = map[string]map[Chord]Action{}
+	}
+	m := k.Sections[section]
+	if m == nil {
+		m = map[Chord]Action{}
+		k.Sections[section] = m
+	}
+	old, had := m[c]
+	m[c] = a
+	return old, had
+}
+
+// Unbind removes the binding of c in section; it reports whether there
+// was one.
+func (k *Keymap) Unbind(section string, c Chord) bool {
+	if _, ok := k.Sections[section][c]; !ok {
+		return false
+	}
+	delete(k.Sections[section], c)
+	return true
+}
+
+// ChordsFor returns the chords of section bound to the action spec, as
+// Action.Spec formats it, sorted by display string.
+func (k *Keymap) ChordsFor(section, spec string) []Chord {
+	var out []Chord
+	for c, a := range k.Sections[section] {
+		if a.Spec() == spec {
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out
+}

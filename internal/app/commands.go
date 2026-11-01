@@ -109,7 +109,7 @@ func init() {
 		{Name: "mod.open", Title: "Open", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdModOpen},
 		{Name: "app.palette", Title: "Command palette", run: func(a *App, _ args) (any, error) { a.openPalette(""); return nil, nil }},
 		{Name: "app.help", Title: "Keyboard shortcuts", run: func(a *App, _ args) (any, error) { a.openPalette(""); return nil, nil }},
-		{Name: "app.settings", Title: "Settings", Args: []argDef{arg("section")}, run: func(a *App, _ args) (any, error) { a.settings = true; return nil, nil }},
+		{Name: "app.settings", Title: "Settings", About: "Open the settings, at section appearance, terminal, layout, keyboard or files", Args: []argDef{arg("section")}, run: (*App).cmdAppSettings},
 		{Name: "app.reload", Title: "Reload settings", About: "Read settings.json and keys.json again; the window also does it when they change", run: func(a *App, _ args) (any, error) { a.reloadConfig(true); return nil, nil }},
 		{Name: "app.theme", Title: "Theme", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdAppTheme},
 		{Name: "app.zoom_in", Title: "Zoom in", run: func(a *App, _ args) (any, error) { a.zoomBy(1); return nil, nil }},
@@ -1079,7 +1079,7 @@ func (a *App) cmdModOpen(v args) (any, error) {
 		a.openPalette("")
 		a.palette.switcher = true
 	case "settings":
-		a.settings = true
+		a.openSettings("")
 	default:
 		return nil, fmt.Errorf("no mod %q in this app", v.str("name"))
 	}

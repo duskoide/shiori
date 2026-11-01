@@ -16,7 +16,10 @@ herdr-app can show the same spaces side by side.
 - Terminals rendered with libghostty-vt through MyGo's terminal plugin
 - Agent status (OSC 7501: working, blocked, done) in the sidebar, tabs
   and status bar, with herdr.seen read tracking
-- Command palette, rename and confirm dialogs, settings, theme presets
+- Command palette, rename and confirm dialogs, theme presets
+- A settings panel (`Ctrl+,`) for everything in `settings.json` and
+  `keys.json`: theme, terminal font and size, sidebar, and every key
+  binding, recorded by pressing the keys
 - herdr-app's default key bindings (`keys.json` overrides them)
 - A control CLI compatible with herdr-app's
   (`shiori do tab.new --argv '["claude"]' --task "..."`)
@@ -90,6 +93,18 @@ app's earlier name, `~/.config/herdr-mygo`, move there on first start. The windo
 half a second), or on `shiori do app.reload`; a file that does not parse
 keeps what was in use. `HC_SESSION`
 selects the herdr-core session.
+
+| File | Key | What | Settings panel |
+| --- | --- | --- | --- |
+| `settings.json` | `theme` | `graphite`, `ink`, `moss`, `paper` or `atom-one-dark` | Appearance |
+| | `font` | the terminals' font family, or a comma-separated list | Terminal |
+| | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
+| | `sidebar` | `false` hides the sidebar | Layout |
+| `keys.json` | `{"section": {"chord": "action"}}` | herdr-app's key bindings: `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
+
+The panel writes the files as you change things, and
+`shiori do app.settings --section keyboard` opens it at a section
+(`appearance`, `terminal`, `layout`, `keyboard`, `files`).
 
 ## Layout of the code
 

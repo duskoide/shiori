@@ -2,12 +2,9 @@ package app
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
-
-	"github.com/duskoide/shiori/internal/theme"
 )
 
 // paletteState is the command palette: every command, and every space
@@ -263,80 +260,4 @@ func (a *App) confirmView(c *ui.Context, k *colors) {
 		a.confirm = nil
 		a.focusReq = a.focus[a.activeTab[a.activeSpace]]
 	}
-}
-
-// settingsView picks the theme and the terminals' text size.
-func (a *App) settingsView(c *ui.Context, k *colors) {
-	if !a.settings {
-		return
-	}
-	ui.DialogBase(c, &a.settings, func(backdrop, panel ui.Element) {
-		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
-		panel.Width(520).Padding(18).Gap(14).Radius(12).Background(k.popover).Border(1, k.border).Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4))
-		panel.Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, "Settings").FontSize(15).FontWeight(600).TextColor(k.foreground)
-				ui.Spacer(c)
-				if iconButton(c, k, "x", "Close settings", 24, 14).Tooltip("Close  Esc").Clicked() {
-					a.settings = false
-				}
-			})
-			ui.Text(c, "Theme").FontSize(12).FontWeight(600).TextColor(k.muted)
-			ui.Row(c).Gap(6).Wrap().Children(func() {
-				current := a.cfg.Theme
-				if current == "" {
-					current = "graphite"
-				}
-				for _, name := range theme.PresetNames {
-					chip := ui.Row(c.Key(name)).Padding(5, 10, 5, 7).Gap(7).Radius(7).AlignItems(ui.Center).Border(1, k.border).
-						Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Theme " + name).Selected(name == current)
-					if name == current {
-						chip.Background(k.selected).Border(1, k.accent)
-					} else if chip.Hovered() {
-						chip.Background(k.hover)
-					}
-					chip.Children(func() {
-						themeSwatch(c, k, name)
-						ui.Text(c, name).FontSize(12.5).TextColor(k.foreground)
-					})
-					if chip.Clicked() {
-						a.post(func() { a.do("app.theme", args{"name": name}) })
-					}
-				}
-			})
-			ui.Text(c, "Terminal text size").FontSize(12).FontWeight(600).TextColor(k.muted)
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				size := a.cfg.fontSize()
-				if ui.Button(c, "−").Label("Smaller text").Tooltip(withKeys("Smaller text", a.keysFor("app.zoom_out"))).Disabled(size <= minFontSize).Clicked() {
-					a.post(func() { a.zoomBy(-1) })
-				}
-				ui.Textf(c, "%g", size).FontSize(13).TextColor(k.foreground).Width(36).TextAlign(ui.Center)
-				if ui.Button(c, "+").Label("Larger text").Tooltip(withKeys("Larger text", a.keysFor("app.zoom_in"))).Disabled(size >= maxFontSize).Clicked() {
-					a.post(func() { a.zoomBy(1) })
-				}
-				if ui.Button(c, "Reset").Tooltip(withKeys("Reset to 13", a.keysFor("app.zoom_reset"))).Disabled(a.cfg.FontSize == 0).Clicked() {
-					a.post(func() { a.zoomBy(0) })
-				}
-			})
-			ui.Text(c, "Key bindings: "+tildePath(filepath.Join(a.home, "keys.json"))+" (herdr-app's format). Changes apply as you save.").
-				FontSize(11.5).TextColor(k.dim).LineHeight(1.35)
-		})
-	})
-	if !a.settings {
-		a.focusReq = a.focus[a.activeTab[a.activeSpace]]
-	}
-}
-
-// themeSwatch is a theme's colors in small: its background, with its text
-// and accent colors on it.
-func themeSwatch(c *ui.Context, k *colors, name string) {
-	p, ok := theme.Preset(name)
-	if !ok {
-		return
-	}
-	t := theme.Resolve(p)
-	ui.Row(c).Size(16, 16).Radius(4).Background(uiColor(t.Background)).Border(1, k.border).Gap(2).Center().Shrink(0).Children(func() {
-		ui.Box(c).Size(4, 4).Radius(2).Background(uiColor(t.Foreground))
-		ui.Box(c).Size(4, 4).Radius(2).Background(uiColor(t.Accent))
-	})
 }
