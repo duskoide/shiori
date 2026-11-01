@@ -2,7 +2,6 @@ package layout
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 )
@@ -117,10 +116,18 @@ func (t *Tab) Split(paneID string, dir Direction, terminal string) (*Node, error
 	if pane == nil || pane.Type != TypeBlock {
 		return nil, fmt.Errorf("layout: pane %q not found", paneID)
 	}
-	if parent == nil {
-		return nil, errors.New("layout: tab root is a block; cannot split")
-	}
 	nb := &Node{ID: NewID("p"), Type: TypeBlock, Content: &Content{Terminal: terminal}}
+	if parent == nil {
+		// A block root (other apps may write one) becomes the first child
+		// of a new root container.
+		pane.Size, nb.Size = weight(0.5), weight(0.5)
+		kids := []*Node{pane, nb}
+		if !dir.after() {
+			kids[0], kids[1] = nb, pane
+		}
+		t.Root = &Node{ID: NewID("c"), Type: dir.containerType(), Children: kids}
+		return nb, nil
+	}
 	i := indexOf(parent, pane)
 	if parent.Type == dir.containerType() {
 		if pane.Size != nil && pane.Size.Px != nil && pane.Size.Weight == nil {
@@ -166,8 +173,13 @@ func insertAt(s []*Node, i int, n *Node) []*Node {
 // pane existed.
 func (t *Tab) RemovePane(paneID string) bool {
 	pane, parent := t.find(paneID)
-	if pane == nil || pane.Type != TypeBlock || parent == nil {
+	if pane == nil || pane.Type != TypeBlock {
 		return false
+	}
+	if parent == nil {
+		// The tab's only pane was its root: the tab is now empty.
+		t.Root = nil
+		return true
 	}
 	i := indexOf(parent, pane)
 	parent.Children = append(parent.Children[:i:i], parent.Children[i+1:]...)

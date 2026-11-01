@@ -130,12 +130,23 @@ func TestSplitErrors(t *testing.T) {
 	if _, err := tab.Split("T", Right, "t"); err == nil {
 		t.Fatal("splitting a container")
 	}
-	solo := &Tab{ID: "T", Root: blk("T", 1)}
-	if _, err := solo.Split("T", Right, "t"); err == nil {
-		t.Fatal("block root")
-	}
 	if _, err := (&Tab{ID: "T"}).Split("a", Right, "t"); err == nil {
 		t.Fatal("empty tab")
+	}
+}
+
+func TestBlockRoot(t *testing.T) {
+	solo := &Tab{ID: "T", Root: blk("a", 1)}
+	nb, err := solo.Split("a", Left, "t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := solo.Root; r.Type != TypeRow || len(r.Children) != 2 || r.Children[0] != nb || r.Children[1].ID != "a" {
+		t.Fatal(dump(solo.Root))
+	}
+	solo = &Tab{ID: "T", Root: blk("a", 1)}
+	if !solo.RemovePane("a") || solo.Root != nil || len(solo.Panes()) != 0 {
+		t.Fatal("removing a block root should empty the tab")
 	}
 }
 
