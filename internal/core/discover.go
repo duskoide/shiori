@@ -111,8 +111,26 @@ func extraBinaryDirs() []string {
 	return dirs
 }
 
-// FindBinary locates a herdr-core/hc binary: explicit, then PATH, then the
-// usual install directories. A candidate is accepted only if "--version"
+// BundledDir is where a release keeps its own herdr-core and hc, relative
+// to the directory of the shiori executable: <prefix>/bin/shiori next to
+// <prefix>/libexec/shiori/{herdr-core,hc}.
+const BundledDir = "../libexec/shiori"
+
+// bundledBinaryDirs is the release's own core directory, if the running
+// executable can be located.
+func bundledBinaryDirs() []string {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = r
+	}
+	return []string{filepath.Join(filepath.Dir(exe), filepath.FromSlash(BundledDir))}
+}
+
+// FindBinary locates a herdr-core/hc binary: explicit, then the core bundled
+// with the release, then PATH, then the usual install directories. A candidate is accepted only if "--version"
 // prints something starting with "hc ".
 func FindBinary(explicit string) (string, error) {
 	if explicit != "" {
@@ -121,12 +139,13 @@ func FindBinary(explicit string) (string, error) {
 		}
 		return exec.LookPath(explicit)
 	}
-	dirs := filepath.SplitList(os.Getenv("PATH"))
+	dirs := bundledBinaryDirs()
+	dirs = append(dirs, filepath.SplitList(os.Getenv("PATH"))...)
 	dirs = append(dirs, extraBinaryDirs()...)
 	if p := searchBinary(dirs, binaryNames, isHC); p != "" {
 		return p, nil
 	}
-	return "", fmt.Errorf("herdr-core binary not found (looked for %s in PATH and common install dirs)", strings.Join(binaryNames, ", "))
+	return "", fmt.Errorf("herdr-core binary not found (looked for %s next to shiori, in PATH and common install dirs)", strings.Join(binaryNames, ", "))
 }
 
 func searchBinary(dirs, names []string, ok func(string) bool) string {

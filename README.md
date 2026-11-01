@@ -24,8 +24,39 @@ herdr-app can show the same spaces side by side.
 ## Requirements
 
 - Go 1.27 or later (`GOTOOLCHAIN=auto` fetches it)
-- herdr-core (`hc`) on `PATH`; the app starts the core if it is not running
+- herdr-core (`hc`): bundled with the releases; for a source build, on `PATH`.
+  The app starts the core if it is not running
 - Linux: GTK 3 and OpenGL. macOS 13 or later.
+
+## Install
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/duskoide/shiori/main/install.sh | sh
+```
+
+The script downloads the release for your OS and CPU (Linux and macOS, amd64
+and arm64), checks its SHA-256, and installs `shiori` to `~/.local/bin`. Each
+release bundles herdr-core, which goes to `~/.local/libexec/shiori` and is
+the core Shiori starts (before any `hc` on `PATH`); `--no-core` skips it. On
+Linux it also adds a desktop entry and icon. If there is no release for your
+platform, it builds from source with Go and fetches herdr-core with its own
+installer. Options go after `sh -s --`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/duskoide/shiori/main/install.sh | sh -s -- --version v0.1.0 --dir /usr/local/bin
+```
+
+`--from-source`, `--no-core`, `--no-desktop`, `--uninstall` and `--help` are also accepted.
+While the repository is private, pass a token that can read it:
+
+```sh
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://raw.githubusercontent.com/duskoide/shiori/main/install.sh | GITHUB_TOKEN=$GITHUB_TOKEN sh
+```
+
+Releases are built by `.github/workflows/release.yml` when a `v*` tag is
+pushed (`git tag v0.1.0 && git push origin v0.1.0`): one job per platform
+builds `shiori` and bundles the latest herdr-core from
+`https://releases.herdr.dev/core/install.sh`.
 
 ## Build and run
 
