@@ -79,7 +79,7 @@ func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layou
 	chip.Drag(t)
 	if dragged, ok := ui.Drop[*layout.Tab](chip); ok && dragged != t {
 		did := dragged.ID
-		a.post(func() { a.do("tab.move", args{"id": did, "index": i}) })
+		a.post(func() { a.do("tab.move", args{"id": did, "index": i + 1}) })
 	}
 	if _, over := ui.DragOver[*layout.Tab](chip); over {
 		chip.Border(1, k.accent)

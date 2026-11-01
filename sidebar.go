@@ -79,7 +79,7 @@ func (a *App) spaceRow(c *ui.Context, k *colors, i int, s *layout.Space) {
 	row.Drag(s)
 	if dragged, ok := ui.Drop[*layout.Space](row); ok && dragged != s {
 		did := dragged.ID
-		a.post(func() { a.do("space.move", args{"id": did, "index": i}) })
+		a.post(func() { a.do("space.move", args{"id": did, "index": i + 1}) })
 	}
 	if _, over := ui.DragOver[*layout.Space](row); over {
 		row.Border(1, k.accent)
