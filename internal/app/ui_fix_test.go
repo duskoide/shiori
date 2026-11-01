@@ -54,6 +54,7 @@ func (*labelBackend) DocSet(context.Context, string, string, uint64, json.RawMes
 func (*labelBackend) DocGet(context.Context, string, string) (json.RawMessage, uint64, error) {
 	return nil, 0, nil
 }
+func (*labelBackend) Machines(context.Context) ([]core.Machine, error) { return nil, nil }
 
 // twoPaneApp has a tab of two panes showing t1 and t2, t1 focused.
 func twoPaneApp(t *testing.T) (*App, *labelBackend) {

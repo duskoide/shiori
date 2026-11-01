@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
 )
 
@@ -17,16 +18,17 @@ var eventNames = []string{
 	"pane.closed", "tab.closed", "space.closed",
 	"space.renamed", "tab.renamed",
 	"focus.changed", "window.focus", "agent.status",
-	"settings.changed", "keys.changed", "connection",
+	"settings.changed", "keys.changed", "connection", "machine.changed",
 }
 
 func knownEvent(name string) bool { return slices.Contains(eventNames, name) }
 
-type snapSpace struct{ name, label, folder string }
+type snapSpace struct{ name, label, folder, machine string }
 type snapTab struct{ space, name, label string }
 type snapPane struct{ space, tab, terminal string }
 type snapAgent struct{ terminal, app, status string }
-type snapFocus struct{ space, tab, pane, terminal, cwd string }
+type snapFocus struct{ space, tab, pane, terminal, cwd, machine string }
+type snapMachine struct{ state, why string }
 
 // stateSnap is what events are worked out from.
 type stateSnap struct {
@@ -43,14 +45,18 @@ type stateSnap struct {
 	keys       string
 	connected  bool
 	connErr    string
+	machines   map[string]snapMachine
 }
 
 func (a *App) snapshot() *stateSnap {
 	s := &stateSnap{spaces: map[string]snapSpace{}, tabs: map[string]snapTab{}, panes: map[string]snapPane{}, agents: map[string]snapAgent{},
-		focused: a.focused, keys: string(a.keysRaw), connected: a.connected, connErr: a.connErr}
+		focused: a.focused, keys: string(a.keysRaw), connected: a.connected, connErr: a.connErr, machines: map[string]snapMachine{}}
+	for _, m := range a.machines {
+		s.machines[m.Name] = snapMachine{state: m.State, why: m.Why}
+	}
 	if a.doc != nil {
 		for _, sp := range a.doc.Spaces {
-			s.spaces[sp.ID] = snapSpace{name: sp.Name, label: a.spaceLabel(sp), folder: sp.Folder}
+			s.spaces[sp.ID] = snapSpace{name: sp.Name, label: a.spaceLabel(sp), folder: sp.Folder, machine: sp.Machine}
 			s.spaceOrder = append(s.spaceOrder, sp.ID)
 			for _, t := range sp.Tabs {
 				s.tabs[t.ID] = snapTab{space: sp.ID, name: t.Name, label: a.tabLabel(t)}
@@ -74,6 +80,9 @@ func (a *App) snapshot() *stateSnap {
 		}
 	}
 	s.focus.space = a.activeSpace
+	if sp := a.space(); sp != nil {
+		s.focus.machine = sp.Machine
+	}
 	if t := a.tab(); t != nil {
 		s.focus.tab = t.ID
 		if p := a.pane(); p != nil {
@@ -104,7 +113,7 @@ func diffEvents(old, now *stateSnap) []event {
 	for _, id := range now.spaceOrder {
 		if _, ok := old.spaces[id]; !ok {
 			sp := now.spaces[id]
-			add("space.created", map[string]string{"space": id, "name": sp.name, "label": sp.label, "folder": sp.folder})
+			add("space.created", map[string]string{"space": id, "name": sp.name, "label": sp.label, "folder": sp.folder, "machine": sp.machine})
 		}
 	}
 	for _, id := range now.tabOrder {
@@ -150,7 +159,7 @@ func diffEvents(old, now *stateSnap) []event {
 	}
 	if old.focus != now.focus {
 		f := now.focus
-		add("focus.changed", map[string]string{"space": f.space, "tab": f.tab, "pane": f.pane, "terminal": f.terminal, "cwd": f.cwd})
+		add("focus.changed", map[string]string{"space": f.space, "tab": f.tab, "pane": f.pane, "terminal": f.terminal, "cwd": f.cwd, "machine": f.machine})
 	}
 	if old.focused != now.focused {
 		add("window.focus", map[string]bool{"focused": now.focused})
@@ -175,6 +184,23 @@ func diffEvents(old, now *stateSnap) []event {
 	}
 	if old.connected != now.connected || old.connErr != now.connErr {
 		add("connection", map[string]any{"connected": now.connected, "error": now.connErr})
+	}
+	// A machine added, changing state, or gone ("removed").
+	names := slices.Sorted(maps.Keys(now.machines))
+	for name := range old.machines {
+		if _, ok := now.machines[name]; !ok {
+			names = append(names, name)
+		}
+	}
+	for _, name := range names {
+		was, had := old.machines[name]
+		is, has := now.machines[name]
+		switch {
+		case !has:
+			add("machine.changed", map[string]any{"name": name, "state": "removed", "previous": was.state})
+		case !had || was != is:
+			add("machine.changed", map[string]any{"name": name, "state": is.state, "why": is.why, "previous": was.state, "connected": is.state == "connected"})
+		}
 	}
 	return out
 }

@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -66,6 +67,9 @@ type Snapshot struct {
 
 // Since is how long ago a file last changed, as the list shows it.
 func Since(now, t time.Time) string {
+	if t.IsZero() {
+		return "" // changed before anyone looked; when is not known
+	}
 	d := now.Sub(t)
 	switch {
 	case d < 10*time.Second:
@@ -99,7 +103,19 @@ type Options struct {
 	MaxFiles int
 	// NoGit walks even in a git work tree.
 	NoGit bool
+	// Run runs git where the folder is, when that is another machine: it
+	// answers the program's output and exit code, or why it could not
+	// run it. There git alone is asked; times are when a change was first
+	// seen, and a folder outside git is not walked.
+	Run Runner
 }
+
+// Runner runs a program in dir.
+type Runner func(ctx context.Context, dir string, argv ...string) (stdout []byte, code int, err error)
+
+// ErrNotGit is why a folder on another machine shows no changes: only a
+// git work tree's are looked at there.
+var ErrNotGit = errors.New("not in a git work tree: changes outside git are not shown for other machines")
 
 // skipDirs are folders a walk does not go into: tools' and builds'.
 var skipDirs = []string{"node_modules", "vendor", "target", "build", "dist", "out", "__pycache__", "venv", ".venv"}
@@ -109,6 +125,13 @@ var skipDirs = []string{"node_modules", "vendor", "target", "build", "dist", "ou
 func Scan(ctx context.Context, folder string, prev *Snapshot, opt Options) Snapshot {
 	start := time.Now()
 	s := Snapshot{Folder: folder}
+	if opt.Run != nil {
+		s.Files, s.Root, s.Err = remoteScan(ctx, folder, prev, opt.Run)
+		s.Git = s.Err == nil
+		sortFiles(s.Files)
+		s.Took = time.Since(start)
+		return s
+	}
 	if fi, err := os.Stat(folder); err != nil || !fi.IsDir() {
 		if err == nil {
 			err = errors.New("not a folder")
@@ -127,14 +150,65 @@ func Scan(ctx context.Context, folder string, prev *Snapshot, opt Options) Snaps
 	if !s.Git {
 		s.Files, s.Truncated, s.Err = walkScan(ctx, folder, prev, opt)
 	}
-	sort.SliceStable(s.Files, func(i, j int) bool {
-		if !s.Files[i].Time.Equal(s.Files[j].Time) {
-			return s.Files[i].Time.After(s.Files[j].Time)
-		}
-		return s.Files[i].Path < s.Files[j].Path
-	})
+	sortFiles(s.Files)
 	s.Took = time.Since(start)
 	return s
+}
+
+// sortFiles puts the most recent first, then by path.
+func sortFiles(files []File) {
+	sort.SliceStable(files, func(i, j int) bool {
+		if !files[i].Time.Equal(files[j].Time) {
+			return files[i].Time.After(files[j].Time)
+		}
+		return files[i].Path < files[j].Path
+	})
+}
+
+// remoteScan asks git on another machine what changed under folder.
+func remoteScan(ctx context.Context, folder string, prev *Snapshot, run Runner) ([]File, string, error) {
+	git := func(args ...string) ([]byte, int, error) {
+		return run(ctx, folder, append([]string{"git", "--no-optional-locks"}, args...)...)
+	}
+	out, code, err := git("rev-parse", "--show-toplevel", "--show-prefix")
+	if err != nil {
+		return nil, "", err
+	}
+	if code != 0 {
+		return nil, "", ErrNotGit
+	}
+	lines := strings.SplitN(strings.TrimRight(string(out), "\n"), "\n", 2)
+	root, prefix := lines[0], ""
+	if len(lines) > 1 {
+		prefix = lines[1] // the folder under the root, with a / after
+	}
+	out, code, err = git("status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return nil, root, err
+	}
+	if code != 0 {
+		return nil, root, fmt.Errorf("git status exited with %d", code)
+	}
+	files := parseStatus(out, prefix)
+	for i := range files {
+		files[i].Time = firstSeen(prev, files[i])
+	}
+	return files, root, nil
+}
+
+// firstSeen is when a change was first seen, for a folder whose files'
+// times are not read: from the scan before, or now. The first scan knows
+// no time (zero), so what changed before the panel looked is not new.
+func firstSeen(prev *Snapshot, f File) time.Time {
+	if prev == nil {
+		return time.Time{}
+	}
+	for _, p := range prev.Files {
+		if p.Path == f.Path && p.Kind == f.Kind {
+			return p.Time
+		}
+	}
+	return time.Now()
 }
 
 func gitRoot(ctx context.Context, folder string) (string, bool) {
@@ -186,6 +260,22 @@ func gitScan(ctx context.Context, folder, root string, prev *Snapshot) ([]File, 
 	} else {
 		prefix = filepath.ToSlash(prefix) + "/"
 	}
+	files := parseStatus(out, prefix)
+	for i := range files {
+		f := &files[i]
+		if fi, err := os.Lstat(filepath.Join(folder, filepath.FromSlash(f.Path))); err == nil && f.Kind != Deleted {
+			f.Time = fi.ModTime()
+		} else {
+			f.Time = missedSince(prev, f.Path)
+		}
+	}
+	return files, cpu, nil
+}
+
+// parseStatus reads git status --porcelain=v1 -z, keeping what is under
+// prefix (the folder's path under the root, with a / after, or ""), with
+// paths relative to it. Times are left for the caller.
+func parseStatus(out []byte, prefix string) []File {
 	under := func(p string) (string, bool) {
 		if prefix == "" {
 			return p, true
@@ -227,14 +317,9 @@ func gitScan(ctx context.Context, folder, root string, prev *Snapshot) ([]File, 
 			continue
 		}
 		f.Path = rel
-		if fi, err := os.Lstat(filepath.Join(folder, filepath.FromSlash(rel))); err == nil && f.Kind != Deleted {
-			f.Time = fi.ModTime()
-		} else {
-			f.Time = missedSince(prev, rel)
-		}
 		files = append(files, f)
 	}
-	return files, cpu, nil
+	return files
 }
 
 // missedSince is when a file was first seen gone: in the scan before, or

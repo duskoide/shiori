@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -151,6 +152,9 @@ type Machine struct {
 type Change struct {
 	// Docs: a document changed (or events were missed): re-read documents.
 	Docs bool
+	// DocMachines names the machines whose document changed ("" is this
+	// one). Nil with Docs set means every machine's: events were missed.
+	DocMachines map[string]bool
 	// Terminals: the terminal snapshot changed.
 	Terminals bool
 	// Seen is the highest herdr.seen label value written per terminal in the
@@ -159,6 +163,15 @@ type Change struct {
 }
 
 func (c *Change) merge(o Change) {
+	switch {
+	case !o.Docs:
+	case !c.Docs:
+		c.DocMachines = maps.Clone(o.DocMachines)
+	case c.DocMachines == nil || o.DocMachines == nil:
+		c.DocMachines = nil // every machine's already, or now
+	default:
+		maps.Copy(c.DocMachines, o.DocMachines)
+	}
 	c.Docs = c.Docs || o.Docs
 	c.Terminals = c.Terminals || o.Terminals
 	for k, v := range o.Seen {
@@ -169,6 +182,11 @@ func (c *Change) merge(o Change) {
 			c.Seen[k] = v
 		}
 	}
+}
+
+// DocChanged reports whether the machine's document may have changed.
+func (c Change) DocChanged(machine string) bool {
+	return c.Docs && (c.DocMachines == nil || c.DocMachines[machine])
 }
 
 func (c Change) empty() bool { return !c.Docs && !c.Terminals && len(c.Seen) == 0 }

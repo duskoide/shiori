@@ -207,11 +207,12 @@ type lsTab struct {
 }
 
 type lsSpace struct {
-	ID     string  `json:"id"`
-	Name   string  `json:"name"`
-	Folder string  `json:"folder,omitempty"`
-	Active bool    `json:"active,omitempty"`
-	Tabs   []lsTab `json:"tabs"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	Machine string  `json:"machine,omitempty"` // "" this one
+	Folder  string  `json:"folder,omitempty"`
+	Active  bool    `json:"active,omitempty"`
+	Tabs    []lsTab `json:"tabs"`
 }
 
 // ls describes spaces, tabs and panes, as herdr-app ls does.
@@ -219,7 +220,7 @@ func (a *App) ls() any {
 	spaces := []lsSpace{}
 	if a.doc != nil {
 		for _, s := range a.doc.Spaces {
-			ls := lsSpace{ID: s.ID, Name: a.spaceLabel(s), Folder: s.Folder, Active: s.ID == a.activeSpace, Tabs: []lsTab{}}
+			ls := lsSpace{ID: s.ID, Name: a.spaceLabel(s), Machine: s.Machine, Folder: s.Folder, Active: s.ID == a.activeSpace, Tabs: []lsTab{}}
 			for _, t := range s.Tabs {
 				lt := lsTab{ID: t.ID, Name: a.tabLabel(t), Active: t.ID == a.activeTab[s.ID], Panes: []lsPane{}}
 				for _, p := range t.Panes() {
@@ -240,7 +241,11 @@ func (a *App) ls() any {
 			spaces = append(spaces, ls)
 		}
 	}
-	return map[string]any{"spaces": spaces}
+	machines := []map[string]any{}
+	for _, m := range a.machines {
+		machines = append(machines, machineJSON(m))
+	}
+	return map[string]any{"spaces": spaces, "machines": machines}
 }
 
 func (a *App) statusReport() any {
@@ -268,8 +273,9 @@ func (a *App) statusReport() any {
 	return map[string]any{
 		"connected":     a.connected,
 		"error":         a.connErr,
-		"layout_loaded": a.loaded,
-		"doc_version":   a.version,
+		"layout_loaded": a.local().loaded,
+		"doc_version":   a.local().version,
+		"machines":      a.machineStatus(),
 		"focus":         focus,
 		"overlays":      overlays,
 		"session":       a.session,
@@ -305,4 +311,21 @@ func ask(home string, req request) (json.RawMessage, error) {
 		return nil, errors.New(e.Error)
 	}
 	return json.RawMessage(line), nil
+}
+
+// machineStatus is each other machine's state and its layout's, for
+// shiori status.
+func (a *App) machineStatus() []map[string]any {
+	out := []map[string]any{}
+	for _, m := range a.machines {
+		j := machineJSON(m)
+		if ds := a.docs[m.Name]; ds != nil {
+			j["layout_loaded"], j["doc_version"] = ds.loaded, ds.version
+			if ds.err != "" {
+				j["layout_error"] = ds.err
+			}
+		}
+		out = append(out, j)
+	}
+	return out
 }

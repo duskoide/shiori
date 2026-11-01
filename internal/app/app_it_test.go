@@ -36,7 +36,7 @@ func TestIntegration(t *testing.T) {
 	tt := ui.NewTester(a.view, 1280, 800)
 	a.start()
 	t.Cleanup(a.shutdown)
-	waitFor(t, tt, "the core", func() bool { return a.connected && a.loaded })
+	waitFor(t, tt, "the core", func() bool { return a.connected && a.local().loaded })
 	shot(t, tt, "01-connected")
 
 	// Start from an empty layout.
@@ -66,7 +66,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, tt, "the new tab", func() bool { return len(a.space().Tabs) == 2 })
-	waitFor(t, tt, "the saved layout", func() bool { return !a.saving && !a.dirty && a.version > 0 })
+	waitFor(t, tt, "the saved layout", func() bool { return !a.local().saving && !a.local().dirty && a.local().version > 0 })
 	a.do("tab.select", args{"index": 1})
 	settle(tt)
 	shot(t, tt, "03-splits")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -14,18 +15,75 @@ import (
 
 // fakeCore is a backend whose document and terminals the test controls.
 type fakeCore struct {
-	mu      sync.Mutex
-	doc     json.RawMessage
-	version uint64
-	terms   map[string]core.Terminal
-	setErr  error // the next DocSet fails with it
-	sets    int
-	kept    []string
+	mu       sync.Mutex
+	doc      json.RawMessage
+	version  uint64
+	terms    map[string]core.Terminal
+	setErr   error // the next DocSet fails with it
+	sets     int
+	kept     []string
+	machines []core.Machine
+	others   map[string]*fakeDoc // other machines' documents
+	gets     map[string]int      // DocGet calls by machine
+	runOK    bool
+	runs     []core.RunParams
+	labels   map[string]map[string]string
 }
 
-func (f *fakeCore) Run(context.Context, core.RunParams) (string, error) { return "", errors.New("no") }
-func (f *fakeCore) Kill(context.Context, string) error                  { return nil }
-func (f *fakeCore) Label(context.Context, string, map[string]string) error {
+// fakeDoc is another machine's document.
+type fakeDoc struct {
+	doc     json.RawMessage
+	version uint64
+}
+
+func (f *fakeCore) Machines(context.Context) ([]core.Machine, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]core.Machine(nil), f.machines...), nil
+}
+
+// slot is the document of a machine ("" this one's).
+func (f *fakeCore) slot(on string) (*json.RawMessage, *uint64) {
+	if on == "" {
+		return &f.doc, &f.version
+	}
+	if f.others == nil {
+		f.others = map[string]*fakeDoc{}
+	}
+	d := f.others[on]
+	if d == nil {
+		d = &fakeDoc{}
+		f.others[on] = d
+	}
+	return &d.doc, &d.version
+}
+
+// Run starts a terminal when the test let it (runOK), on the machine
+// asked: "mac/t20" on mac.
+func (f *fakeCore) Run(_ context.Context, p core.RunParams) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.runOK {
+		return "", errors.New("no")
+	}
+	f.runs = append(f.runs, p)
+	addr := fmt.Sprintf("t%d", 19+len(f.runs))
+	if p.On != "" {
+		addr = p.On + "/" + addr
+	}
+	f.terms[addr] = core.Terminal{Address: addr, State: "live", Labels: p.Labels}
+	return addr, nil
+}
+
+func (f *fakeCore) Kill(context.Context, string) error { return nil }
+
+func (f *fakeCore) Label(_ context.Context, addr string, l map[string]string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.labels == nil {
+		f.labels = map[string]map[string]string{}
+	}
+	f.labels[addr] = l
 	return nil
 }
 
@@ -49,7 +107,7 @@ func (f *fakeCore) Get(_ context.Context, addr string) (core.Terminal, error) {
 	return t, nil
 }
 
-func (f *fakeCore) DocSet(_ context.Context, _, _ string, version uint64, value json.RawMessage) (uint64, error) {
+func (f *fakeCore) DocSet(_ context.Context, _, on string, version uint64, value json.RawMessage) (uint64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.sets++
@@ -57,25 +115,48 @@ func (f *fakeCore) DocSet(_ context.Context, _, _ string, version uint64, value 
 		f.setErr = nil
 		return 0, err
 	}
-	if version != f.version {
+	doc, v := f.slot(on)
+	if version != *v {
 		return 0, &core.RPCError{Code: -32000, Message: "version moved", Kind: "conflict"}
 	}
-	f.version++
-	f.doc = append(json.RawMessage(nil), value...)
-	return f.version, nil
+	*v++
+	*doc = append(json.RawMessage(nil), value...)
+	return *v, nil
 }
 
-func (f *fakeCore) DocGet(context.Context, string, string) (json.RawMessage, uint64, error) {
+func (f *fakeCore) DocGet(_ context.Context, _, on string) (json.RawMessage, uint64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.doc, f.version, nil
+	if f.gets == nil {
+		f.gets = map[string]int{}
+	}
+	f.gets[on]++
+	doc, v := f.slot(on)
+	return *doc, *v, nil
 }
 
-func (f *fakeCore) stored(t *testing.T) *layout.Document {
+// put stores a machine's document, as another app would.
+func (f *fakeCore) put(t *testing.T, on string, d *layout.Document) {
+	t.Helper()
+	value, err := d.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	doc, v := f.slot(on)
+	*doc, *v = value, *v+1
+}
+
+func (f *fakeCore) stored(t *testing.T) *layout.Document { return f.storedOn(t, "") }
+
+// storedOn is the document a machine's core has.
+func (f *fakeCore) storedOn(t *testing.T, on string) *layout.Document {
 	t.Helper()
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	d, err := layout.Decode(f.doc)
+	doc, _ := f.slot(on)
+	d, err := layout.Decode(*doc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +178,7 @@ func syncApp(t *testing.T, doc *layout.Document, terms ...core.Terminal) (*App, 
 	a.core, a.connected = f, true
 	a.sy.gen = 1
 	a.setTerminals(terms) // the order connectedTo and session1 keep
-	a.remoteDoc(value, 1)
+	a.remoteDoc("", value, 1)
 	return a, f
 }
 
@@ -176,11 +257,11 @@ func TestFailedSaveIsRetried(t *testing.T) {
 	a.doc.Spaces[0].Name = "renamed"
 	a.changed()
 	a.flush()
-	until(t, a, "the failure", func() bool { f.mu.Lock(); defer f.mu.Unlock(); return !a.saving && f.sets == 1 })
-	if a.doc.Spaces[0].Name != "renamed" || !a.dirty {
+	until(t, a, "the failure", func() bool { f.mu.Lock(); defer f.mu.Unlock(); return !a.local().saving && f.sets == 1 })
+	if a.doc.Spaces[0].Name != "renamed" || !a.local().dirty {
 		t.Fatal("the edit was dropped")
 	}
-	a.sy.saveAfter = time.Time{} // skip the wait
+	a.local().saveAfter = time.Time{} // skip the wait
 	until(t, a, "the retry", func() bool { return f.stored(t).Spaces[0].Name == "renamed" })
 }
 
@@ -195,9 +276,9 @@ func TestConflictTakesTheOtherCopy(t *testing.T) {
 	a.doc.Spaces[0].Name = "mine"
 	a.changed()
 	a.flush()
-	until(t, a, "the conflict", func() bool { return a.version == 2 })
-	if a.doc.Spaces[0].Name != "theirs" || a.dirty {
-		t.Fatalf("doc %q dirty %v", a.doc.Spaces[0].Name, a.dirty)
+	until(t, a, "the conflict", func() bool { return a.local().version == 2 })
+	if a.doc.Spaces[0].Name != "theirs" || a.local().dirty {
+		t.Fatalf("doc %q dirty %v", a.doc.Spaces[0].Name, a.local().dirty)
 	}
 }
 
@@ -207,11 +288,11 @@ func TestStaleSaveReplyIsIgnored(t *testing.T) {
 	a.changed()
 	a.flush()
 	a.sy.gen++ // the connection was replaced meanwhile
-	a.saving = false
-	<-a.sy.saveDone
+	a.local().saving = false
+	<-a.local().saveDone
 	a.runPosted()
-	if a.version != 1 {
-		t.Fatalf("a stale reply moved the version to %d", a.version)
+	if a.local().version != 1 {
+		t.Fatalf("a stale reply moved the version to %d", a.local().version)
 	}
 }
 

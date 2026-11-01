@@ -29,6 +29,7 @@ var settingsSections = []struct{ id, title, icon string }{
 	{"layout", "Layout", "sidebar"},
 	{"keyboard", "Keyboard", "keyboard"},
 	{"mods", "Mods", "puzzle"},
+	{"machines", "Machines", "server"},
 	{"files", "Files", "file"},
 	{"about", "About", "info"},
 }
@@ -86,6 +87,8 @@ func settingsSectionOf(name string) (string, bool) {
 		return "layout", true
 	case "extensions", "plugins", "mod":
 		return "mods", true
+	case "machine", "remote", "remotes", "ssh":
+		return "machines", true
 	case "config":
 		return "files", true
 	case "version", "updates", "update":
@@ -96,7 +99,7 @@ func settingsSectionOf(name string) (string, bool) {
 
 func (a *App) cmdAppSettings(v args) (any, error) {
 	if _, ok := settingsSectionOf(v.str("section")); !ok {
-		return nil, fmt.Errorf("no settings section %q; sections: appearance, terminal, layout, keyboard, files", v.str("section"))
+		return nil, fmt.Errorf("no settings section %q; sections: appearance, terminal, layout, keyboard, mods, machines, files, about", v.str("section"))
 	}
 	a.openSettings(v.str("section"))
 	return nil, nil
@@ -504,6 +507,8 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 							a.keyboardPage(c, k)
 						case "mods":
 							a.modsPage(c, k)
+						case "machines":
+							a.machinesPage(c, k)
 						case "files":
 							a.filesPage(c, k)
 						case "about":
@@ -538,9 +543,13 @@ func (a *App) settingsNav(c *ui.Context, k *colors) {
 			row.Children(func() {
 				ui.Icon(c, glyph(s.icon)).Size(15, 15).TextColor(col)
 				ui.Text(c, s.title).FontSize(13).TextColor(k.foreground)
-				if (s.id == "keyboard" && a.keysErr != "") || (s.id == "mods" && a.modTrouble() != "") {
+				trouble := map[string]string{"mods": a.modTrouble(), "machines": a.machineTrouble()}[s.id]
+				if s.id == "keyboard" && a.keysErr != "" {
+					trouble = "keys.json has problems"
+				}
+				if trouble != "" {
 					ui.Spacer(c)
-					ui.Icon(c, glyph("alert")).Size(13, 13).TextColor(k.blocked).Tooltip(map[bool]string{true: "keys.json has problems", false: a.modTrouble()}[s.id == "keyboard"])
+					ui.Icon(c, glyph("alert")).Size(13, 13).TextColor(k.blocked).Tooltip(trouble)
 				}
 			})
 			if row.Clicked() && !active {

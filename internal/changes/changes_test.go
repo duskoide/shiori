@@ -2,6 +2,7 @@ package changes
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -202,5 +203,76 @@ func TestWatcherLookedAtAgainScansAtOnce(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no scan on coming back")
+	}
+}
+
+// localRunner runs programs here, as hc exec runs them on another machine,
+// recording what it ran.
+func localRunner(ran *[]string) Runner {
+	return func(ctx context.Context, dir string, argv ...string) ([]byte, int, error) {
+		*ran = append(*ran, dir+": "+strings.Join(argv, " "))
+		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return out, ee.ExitCode(), nil
+		}
+		return out, 0, err
+	}
+}
+
+// On another machine git alone is asked, through the runner: no file is
+// read here, and times are when a change was first seen.
+func TestRemoteScan(t *testing.T) {
+	dir := gitRepo(t)
+	write(t, dir, "a.txt", "a2")
+	write(t, dir, "b/e.txt", "e")
+	os.Remove(filepath.Join(dir, "b", "c.txt"))
+	var ran []string
+	opt := Options{Run: localRunner(&ran)}
+	s := Scan(context.Background(), dir, nil, opt)
+	if s.Err != nil || !s.Git || s.Root == "" {
+		t.Fatalf("%+v", s)
+	}
+	if got := kinds(s); got != "M a.txt, D b/c.txt, U b/e.txt" {
+		t.Fatal(got)
+	}
+	for _, f := range s.Files {
+		if !f.Time.IsZero() {
+			t.Fatalf("the first scan knows no time: %+v", f)
+		}
+	}
+	if len(ran) != 2 || !strings.HasPrefix(ran[0], dir+": git --no-optional-locks rev-parse") || !strings.Contains(ran[1], "status --porcelain=v1 -z") {
+		t.Fatal(ran)
+	}
+	// A change seen later is new from then; the others keep their time.
+	write(t, dir, "new.txt", "n")
+	again := Scan(context.Background(), dir, &s, opt)
+	if got := kinds(again); got != "U new.txt, M a.txt, D b/c.txt, U b/e.txt" {
+		t.Fatal(got)
+	}
+	if again.Files[0].Time.IsZero() || !again.Files[1].Time.IsZero() {
+		t.Fatalf("%+v", again.Files)
+	}
+	// A subfolder lists its own files, relative to it.
+	sub := Scan(context.Background(), filepath.Join(dir, "b"), nil, opt)
+	if got := kinds(sub); got != "D c.txt, U e.txt" {
+		t.Fatalf("subfolder: %s", got)
+	}
+	// Outside git there is nothing to ask.
+	plain := Scan(context.Background(), t.TempDir(), nil, opt)
+	if !errors.Is(plain.Err, ErrNotGit) || plain.Git {
+		t.Fatalf("%+v", plain)
+	}
+	// A runner that cannot run says why.
+	broken := Scan(context.Background(), dir, nil, Options{Run: func(context.Context, string, ...string) ([]byte, int, error) {
+		return nil, 0, errors.New("mac is not connected")
+	}})
+	if broken.Err == nil || broken.Err.Error() != "mac is not connected" {
+		t.Fatalf("%+v", broken)
+	}
+	if Since(time.Now(), time.Time{}) != "" {
+		t.Fatal("a zero time has an age")
 	}
 }

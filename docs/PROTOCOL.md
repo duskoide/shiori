@@ -117,6 +117,23 @@ Result = Terminal record + extras; the app reads only `result.address` (e.g. `"t
 `{}` ⇒ `{core,version,pid,uptime_ms,holders,holder,live,finished,installed_by}` (app uses version/installed_by for updater).
 ### 4.13 Unused by app, available
 terminal.send {terminal,text}, terminal.keys {terminal,keys}, terminal.interrupt, terminal.wait, terminal.put, machine.add/rm/rename/connect, machine.exec, file.read/write/edit, server.stop/restart, templates.list. (Mods can forward arbitrary core calls, mods.rs.)
+### 4.14 Machines, through the `hc` command
+herdr-app (and Shiori, `core.HC`) manage machines with the command line, not the RPC methods above:
+
+| What | Command |
+| --- | --- |
+| List | `hc machine ls --json` ⇒ `{machines:[…]}`, as `machine.list` |
+| Add | `hc machine add <target> --json`; target is how SSH reaches it (`user@host`, a `~/.ssh/config` host) |
+| Add, needing a person | on error kind `hc_missing`, `incompatible`, `login_needed`, `auth_failed`, `host_key`, or a message about a password, passphrase, host key, permission or login: `hc machine add <target>` (no `--json`) in a terminal; the list shows the machine once added |
+| Rename | `hc machine rename <name> <new>` |
+| Remove | `hc machine rm <name>` (its terminals keep running there) |
+| Update its core | `hc machine update <name>` ⇒ `{version}` |
+| Log in | `hc machine login <name>`, in a terminal, for `needs_login` |
+| Run a program there | `hc exec --json --on <name> --timeout <s> [--cwd <dir>] -- <cmd> <args…>` ⇒ `{code, stdout, stderr (base64), timed_out}` |
+
+Errors from `hc … --json` come as `{"error":{"kind","message"}}` on stdout or stderr, with a non-zero exit code.
+
+An agent started on another machine runs in that machine's login and interactive shell (its core may have only SSH's minimal PATH): `sh -c '<script>' sh <cmd…>`, the script picking `$SHELL` there (herdr-app `remote_shell.rs`; Shiori `remoteLaunch`).
 
 ## 5. Terminal streaming
 

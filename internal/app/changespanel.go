@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -11,6 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/duskoide/shiori/internal/changes"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // The changes panel, on the right of the panes, lists the files being
@@ -28,21 +31,29 @@ const (
 
 // changesState is the panel's watcher and what it last found.
 type changesState struct {
-	w     *changes.Watcher
-	snap  changes.Snapshot
-	have  bool    // snap is the watched folder's
-	width float32 // the panel's width, 0 for the first
-	list  ui.ListState
+	w       *changes.Watcher
+	machine string // whose folder w watches: "" this machine's
+	snap    changes.Snapshot
+	have    bool    // snap is the watched folder's
+	width   float32 // the panel's width, 0 for the first
+	list    ui.ListState
 }
 
 func (s Settings) changesShown() bool { return s.Changes != nil && *s.Changes }
 
-// changesFolder is the folder the panel watches: the active space's.
-func (a *App) changesFolder() string {
+// changesFolder is the folder the panel watches: the active space's, on
+// its machine.
+func (a *App) changesFolder() (machine, folder string) {
 	s := a.space()
 	if s == nil {
-		return ""
+		return "", ""
 	}
+	return s.Machine, a.spaceFolder(s)
+}
+
+// spaceFolder is a space's folder: the one it names, else where its first
+// terminal is.
+func (a *App) spaceFolder(s *layout.Space) string {
 	if s.Folder != "" {
 		return s.Folder
 	}
@@ -59,11 +70,11 @@ func (a *App) changesFolder() string {
 // syncChanges watches the folder the panel shows, and nothing when it is
 // hidden (main thread, each frame).
 func (a *App) syncChanges() {
-	want := ""
+	machine, want := "", ""
 	if a.cfg.changesShown() {
-		want = a.changesFolder()
+		machine, want = a.changesFolder()
 	}
-	if a.chg.w != nil && a.chg.w.Folder() == want {
+	if a.chg.w != nil && a.chg.w.Folder() == want && a.chg.machine == machine {
 		// Nobody looks at it while the window is in the background.
 		a.chg.w.SetIdle(!a.focused)
 		return
@@ -72,22 +83,31 @@ func (a *App) syncChanges() {
 	if want == "" {
 		return
 	}
+	opt := changes.Options{}
+	if machine != "" {
+		// Another machine's folder: git there, through hc exec.
+		hc := a.hcRunner()
+		opt.Run = func(ctx context.Context, dir string, argv ...string) ([]byte, int, error) {
+			r, err := hc.Exec(ctx, machine, dir, 20*time.Second, argv...)
+			return r.Stdout, r.Code, err
+		}
+	}
 	var w *changes.Watcher
-	w = changes.Watch(want, changes.Options{}, func(s changes.Snapshot) {
+	w = changes.Watch(want, opt, func(s changes.Snapshot) {
 		a.post(func() {
 			if a.chg.w == w {
 				a.chg.snap, a.chg.have = s, true
 			}
 		})
 	})
-	a.chg.w = w
+	a.chg.w, a.chg.machine = w, machine
 }
 
 func (a *App) stopChanges() {
 	if a.chg.w != nil {
 		a.chg.w.Stop()
 	}
-	a.chg.w, a.chg.have, a.chg.snap = nil, false, changes.Snapshot{}
+	a.chg.w, a.chg.have, a.chg.snap, a.chg.machine = nil, false, changes.Snapshot{}, ""
 }
 
 func (a *App) toggleChanges() {
@@ -140,7 +160,7 @@ func kindColor(k *colors, kind changes.Kind) ui.Color {
 
 func (a *App) changesPanel(c *ui.Context, k *colors) {
 	snap := a.chg.snap
-	folder := a.changesFolder()
+	machine, folder := a.changesFolder()
 	ui.Column(c).Width(a.changesWidth()).Shrink(0).MinHeight(0).Background(k.chrome).Label("Changes").Children(func() {
 		ui.Row(c).Height(36).Padding(0, 6, 0, 14).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 			ui.Text(c, "Changes").FontSize(12.5).FontWeight(600).TextColor(k.foreground)
@@ -162,7 +182,7 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 			if a.chg.have && snap.Git {
 				what = "what differs from the last commit"
 			}
-			ui.Text(c, tildePath(folder)+" · "+what).FontSize(11).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
+			ui.Text(c, pathOn(machine, folder)+" · "+what).FontSize(11).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
 		}
 		ui.Box(c).Height(1).Background(k.border).Shrink(0)
 		switch {
@@ -170,6 +190,8 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 			changesNote(c, k, "No space", "The panel shows the changes in the active space's folder.")
 		case !a.chg.have:
 			changesNote(c, k, "Looking…", "")
+		case errors.Is(snap.Err, changes.ErrNotGit):
+			changesNote(c, k, "Not in git", "Changes outside git are not shown for other machines.")
 		case snap.Err != nil:
 			changesNote(c, k, "Cannot look at this folder", snap.Err.Error())
 		case len(snap.Files) == 0 && snap.Git:
@@ -225,13 +247,17 @@ func (a *App) changeRow(c *ui.Context, k *colors, snap changes.Snapshot, f chang
 	if f.OldPath != "" {
 		tip += " (was " + f.OldPath + ")"
 	}
-	row.Tooltip(tip + " · " + f.Time.Format("Jan 2 15:04:05"))
+	if !f.Time.IsZero() {
+		tip += " · " + f.Time.Format("Jan 2 15:04:05")
+	}
+	row.Tooltip(tip)
+	remote := a.chg.machine != ""
 	abs := filepath.Join(snap.Folder, filepath.FromSlash(f.Path))
 	row.ContextMenu(func(m *ui.Menu) {
 		if m.Item("Show changes").Disabled(!snap.Git && f.Kind == changes.Deleted).Chosen() {
 			a.post(func() { a.showFileChanges(snap, f) })
 		}
-		if m.Item("Open in editor").Disabled(f.Kind == changes.Deleted).Chosen() {
+		if !remote && m.Item("Open in editor").Disabled(f.Kind == changes.Deleted).Chosen() {
 			a.post(func() { a.openInEditor(snap.Folder, f.Path) })
 		}
 		m.Separator()
@@ -280,7 +306,8 @@ func (a *App) showFileChanges(snap changes.Snapshot, f changes.File) {
 	default:
 		argv = []string{"less", "--", f.Path}
 	}
-	if _, err := a.do("tab.new", args{"argv": toAny(argv), "folder": snap.Folder, "name": "Δ " + path.Base(f.Path)}); err != nil {
+	// It runs where the folder is: in the shown space, on its machine.
+	if _, err := a.do("tab.new", args{"space": a.activeSpace, "argv": toAny(argv), "folder": snap.Folder, "name": "Δ " + path.Base(f.Path)}); err != nil {
 		a.notifyLevel(err.Error(), levelError)
 	}
 }

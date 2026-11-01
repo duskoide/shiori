@@ -22,6 +22,9 @@ type Space struct {
 	ID, Name, Folder string
 	Tabs             []*Tab
 	Extra            map[string]json.RawMessage
+	// Machine is whose space it is: "" this machine's. The window knows
+	// it; no document holds it (see machines.go).
+	Machine string
 }
 
 // Tab is one tiled arrangement. Root.ID equals the tab ID.
@@ -71,6 +74,9 @@ func NewID(prefix string) string {
 	return prefix + hex.EncodeToString(b[:])
 }
 
+// NewIDOn is NewID qualified for a machine ("" this one).
+func NewIDOn(machine, prefix string) string { return Qualify(NewID(prefix), machine) }
+
 // Decode parses a document. Empty input and JSON null yield an empty document.
 func Decode(b []byte) (*Document, error) {
 	d := &Document{}
@@ -99,7 +105,7 @@ func (d *Document) Clone() *Document {
 }
 
 func (s *Space) clone() *Space {
-	c := &Space{ID: s.ID, Name: s.Name, Folder: s.Folder, Extra: cloneExtra(s.Extra)}
+	c := &Space{ID: s.ID, Name: s.Name, Folder: s.Folder, Extra: cloneExtra(s.Extra), Machine: s.Machine}
 	for _, t := range s.Tabs {
 		c.Tabs = append(c.Tabs, &Tab{ID: t.ID, Name: t.Name, Root: t.Root.clone(), Extra: cloneExtra(t.Extra)})
 	}

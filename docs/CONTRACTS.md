@@ -47,7 +47,27 @@ func (c *Client) Subscribe(ctx) (*Events, error)
 func (e *Events) Terminals() []Terminal   // snapshot, live+finished, core order, copy
 func (e *Events) Live() []Terminal
 func (e *Events) Changes() <-chan Change  // coalesced notifications; closed when the stream ends
-type Change struct { Docs bool; Terminals bool; Seen map[string]uint64 }
+type Change struct { Docs bool; DocMachines map[string]bool; Terminals bool; Seen map[string]uint64 } // DocMachines: whose document changed ("" this one's); nil with Docs: every machine's (events were missed)
+func (c Change) DocChanged(machine string) bool
+
+// machines, through the hc command (as herdr-app manages them)
+type Machine struct { Name, Target, ID, Host, Version, State, Why string; SinceMs int64; Session string; Temporary, Via bool }
+func (m Machine) Usable() bool // State == MachineConnected
+const MachineConnected, MachineNeedsUpdate, MachineNeedsLogin = "connected", "needs_update", "needs_login"
+type HC struct { Bin string; Env []string; Timeout time.Duration } // Bin "" = FindBinary; Env e.g. HC_SESSION=…
+type HCError struct { Kind, Message string }                      // {"error":{"kind","message"}} from hc
+func (h *HC) Path() (string, error)
+func (h *HC) Argv(args ...string) ([]string, error)                // for a terminal to run
+func (h *HC) Run(ctx, timeout time.Duration, out any, args ...string) error
+func (h *HC) MachineList(ctx) ([]Machine, error)                   // hc machine ls --json
+func (h *HC) MachineAdd(ctx, target string) error                  // hc machine add <target> --json (3 min)
+func AddNeedsPerson(err error) bool                                // herdr-app's rule: run "hc machine add <target>" in a terminal instead
+func (h *HC) MachineRename(ctx, name, to string) error
+func (h *HC) MachineRemove(ctx, name string) error                 // its terminals keep running there
+func (h *HC) MachineUpdate(ctx, name string) (version string, err error)
+func (h *HC) Version(ctx) (string, error)                          // "0.1.16"
+type ExecResult struct { Code int; Stdout, Stderr []byte }
+func (h *HC) Exec(ctx, machine, cwd string, timeout time.Duration, argv ...string) (ExecResult, error) // hc exec --json; ErrExecTimedOut
 
 // terminal streams: a net.Conn-like value for the MyGo terminal plugin (Options.Conn)
 type Display struct { FG, BG, Cursor string; Cell [2]int } // JSON {"fg","bg","cursor","cell"}
@@ -69,7 +89,7 @@ write the same document).
 
 ```go
 type Document struct { Spaces []*Space; Extra map[string]json.RawMessage }
-type Space struct { ID, Name, Folder string; Tabs []*Tab; Extra map[string]json.RawMessage }
+type Space struct { ID, Name, Folder string; Tabs []*Tab; Extra map[string]json.RawMessage; Machine string } // Machine: the window's, never saved
 type Tab struct { ID, Name string; Root *Node; Extra map[string]json.RawMessage }
 type Node struct { ID, Type string; Children []*Node; Content *Content; Size *Size; Extra map[string]json.RawMessage }
 type Content struct { Terminal, Mod string; Props json.RawMessage; Extra map[string]json.RawMessage }
@@ -79,6 +99,17 @@ func (d *Document) Encode() ([]byte, error)
 func Equal(a, b *Document) bool            // semantic, 268.0 == 268
 func (d *Document) Clone() *Document
 func NewID(prefix string) string           // prefix + 32 lowercase hex
+func NewIDOn(machine, prefix string) string // NewID qualified for a machine
+// machines: another machine's ids and addresses are qualified "mac/<id>" in the window
+func MachineOf(id string) string            // "mac" for "mac/t7", "" for "t7"
+func Qualify(id, machine string) string
+func Local(id, machine string) string
+func (d *Document) Machines() []string
+func (d *Document) Part(machine string) *Document          // that machine's document, in its own ids (Extra only for this machine's)
+func (d *Document) Replace(part *Document, machine string) // put it in place of that machine's spaces, qualified
+func (d *Document) Drop(machine string)
+func (d *Document) OrderSpaces()                           // this machine's first, then each machine's by name
+func (d *Document) AddSpaceOn(machine, name, folder string) *Space
 // queries
 func (d *Document) Space(id string) *Space
 func (d *Document) Tab(id string) (*Space, *Tab)
@@ -88,7 +119,7 @@ func (t *Tab) Panes() []*Node               // block leaves, document order
 // edits
 func (d *Document) AddSpace(name, folder string) *Space
 func (d *Document) RemoveSpace(id string) bool
-func (d *Document) MoveSpace(id string, index int) bool
+func (d *Document) MoveSpace(id string, index int) bool  // clamped to its machine's spaces
 func (s *Space) AddTab(name, terminal string) (*Tab, *Node)   // root {id: tab.ID, type: row, children: [block]}
 func (s *Space) RemoveTab(id string) bool
 func (s *Space) MoveTab(id string, index int) bool
@@ -190,7 +221,9 @@ type Kind int // Modified, Added, Deleted, Renamed, Untracked, Changed (outside 
 func (k Kind) Letter() string // "M", "A", "D", "R", "U"
 type File struct { Path, OldPath string; Kind Kind; Time time.Time } // paths relative to the folder
 type Snapshot struct { Folder string; Git bool; Root string; Files []File; Truncated bool; Err error; Took time.Duration } // Took: wall time, or git's CPU time if more
-type Options struct { Recent time.Duration; MaxFiles int; NoGit bool } // a day; 20000; walk even in git
+type Options struct { Recent time.Duration; MaxFiles int; NoGit bool; Run Runner } // a day; 20000; walk even in git; Run: git on another machine
+type Runner func(ctx context.Context, dir string, argv ...string) (stdout []byte, code int, err error)
+var ErrNotGit error // another machine's folder outside git: not looked at
 func Scan(ctx context.Context, folder string, prev *Snapshot, opt Options) Snapshot // most recent first
 func Same(a, b Snapshot) bool
 var Interval = 2 * time.Second // a Watcher's least wait; it waits 30× what a scan cost (git's CPU time included)
@@ -199,7 +232,7 @@ func (w *Watcher) Folder() string
 func (w *Watcher) Refresh()
 func (w *Watcher) SetIdle(idle bool) // 5× slower (10s at least) while nobody looks; scans at once when looked at again
 func (w *Watcher) Stop()
-func Since(now, t time.Time) string // "now", "<1m", "5m", "3h", "2d"
+func Since(now, t time.Time) string // "now", "<1m", "5m", "3h", "2d"; "" for a zero time (another machine's change seen before the first scan)
 ```
 
 ## internal/update
