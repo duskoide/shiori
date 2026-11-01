@@ -1,6 +1,8 @@
 # Remote machines — plan
 
-Status: plan, not built. Branch `remote-machines` (from `main` at `0a8c145`).
+Status: plan, not built; phase 0 done (below). Branch `remote-machines`
+(from `main` at `0a8c145`). Reference: herdr-app, public at
+https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
 
 Goal: Shiori shows and works with the spaces, tabs and terminals of other
 machines that herdr-core is connected to, as herdr-app does, beside this
@@ -27,6 +29,63 @@ remote machines and learn to read, write and show them.
 - Doc comments in the code's plain style: short sentences, what and why.
 - Linux and macOS only; no Windows work on this side.
 
+## Decisions (from the owner)
+
+- Follow herdr-app's way in everything. Another machine needs herdr-core
+  (`hc`) at least; Shiori there is optional.
+- Machines are reached over SSH (key exchange, as herdr-core does it).
+- Temporary machines: leave them out, as herdr-app does (they are agents'
+  short-lived sandboxes).
+- No Windows machines: no PowerShell fallback.
+- Testing: a headless Proxmox node (only needs `hc`; no GUI) and a second
+  workstation. The window runs on the owner's machine; the tests here use
+  a fake core.
+
+## What herdr-app does (phase 0)
+
+herdr-app manages machines with the **`hc` command**, not with RPC calls
+(only `machine.list` is called as RPC, in `src/window.rs`):
+
+| What | Command | Where in herdr-app |
+| --- | --- | --- |
+| List | `hc machine ls --json` ⇒ `{machines:[…]}` as `machine.list` | `defaults/frame/settings/main.js` `loadMachines` |
+| Add | `hc machine add <target> --json`; target is how SSH reaches it (`user@host` or a `~/.ssh/config` host) | `defaults/mods/machine-add/main.js` `add` |
+| Add, when it needs a person | on error kind `hc_missing`, `incompatible`, `login_needed`, `auth_failed`, `host_key`, or a message about a password, passphrase, host key, permission or login: run `hc machine add <target>` (no `--json`) in a terminal and show it, so the person answers; poll `hc machine ls` every 3 s until it is there | same, `inTerminal` |
+| Rename | `hc machine rename <name> <new>` | settings `machineAction` |
+| Remove | `hc machine rm <name>`: "its terminals keep running there" | same |
+| Update its core | `hc machine update <name>` (offered when its version is older than this core's); answers `{version}` | same |
+| Log in | `hc machine login <name>`, for `needs_login` | `src/window.rs` 1862 |
+| Run a program there | `hc exec --json --on <name> --timeout <s> [--cwd <dir>] -- <cmd> <args…>` ⇒ `{code, stdout, stderr (base64), timed_out}` or `{error:{message}}` | `src/mods.rs` `run_remote` |
+
+Errors from `hc … --json` come as `{"error":{"kind","message"}}` on stdout
+or stderr; the exit code is not 0.
+
+The Add dialog lists the `Host` entries of `~/.ssh/config` (patterns with
+`*`, `?` or `!` left out) to pick from, and takes a typed target. On a Mac
+it says once that macOS asks on that Mac's screen before programs read
+Desktop, Documents or Downloads (optional for Shiori).
+
+Launching on another machine (`src/remote_shell.rs` `launch`): the core
+there may have only SSH's minimal PATH, so the command runs in that
+machine's login and interactive shell, picked from `$SHELL` there:
+
+```text
+sh -c '<script>' sh <cmd…>     where <script> is
+shell=${SHELL:-/bin/sh}
+case "${shell##*/}" in
+  fish) exec "$shell" -lic 'command $argv[2..]; exec $argv[1] -li' "$shell" "$@" ;;
+  sh|bash|zsh|dash|ksh) exec "$shell" -lic '"$@"; exec "$0" -li' "$shell" "$@" ;;
+  *) exec sh -c '"$@"; exec "${SHELL:-sh}" -i' sh "$@" ;;
+esac
+```
+
+Layout (`src/mirror.rs`): `qualify(id, machine)` is `machine/id`;
+`local(id, machine)` strips it. A space records its machine (it is not
+read from the id). `capture` writes one machine's spaces with ids made
+local; `replace` puts a machine's document back at the place its spaces
+had, qualified. Moves keep spaces inside their machine's block. When a
+machine leaves the list, its spaces go from the window.
+
 ## What the core offers (docs/PROTOCOL.md)
 
 - `machine.list {}` ⇒ `{machines:[{name,target,id,host,version,state,why,since_ms,session,temporary,via}]}`;
@@ -35,9 +94,8 @@ remote machines and learn to read, write and show them.
   `temporary` machines, and re-reads a machine's document when its
   `since_ms` changes (a reconnect). Shiori has `core.Client.Machines`.
 - `machine.add`, `machine.connect`, `machine.rename`, `machine.rm`,
-  `machine.exec`: **names only; parameters unknown** (see Open questions).
-  The core's test switches include `HC_SSH`: it likely reaches machines
-  over SSH.
+  `machine.exec` exist as RPC, but herdr-app uses the `hc` command for
+  them (above), and so does Shiori.
 - Remote terminals come in the same event stream as local ones, addressed
   `mac/t7`. `terminal.attach`, `kill`, `label`, `keep`, `get` take such
   addresses; the core routes them.
@@ -97,7 +155,10 @@ remote machines and learn to read, write and show them.
     prefixes stripped (`""` is local). Unknown fields must round-trip
     (PROTOCOL.md §7.2).
   - `func MachineOf(id string) string`.
-  - `AddSpace` takes the machine. `NewID` ids get the machine's prefix.
+  - `Space` gets a `Machine string` field, not saved in the document
+    (herdr-app's `Space.machine`); `AddSpace` takes it. New ids on a
+    machine are qualified (herdr-app's `fresh_id_on`). Moving a space keeps
+    it inside its machine's block.
 - Sync state becomes **per machine**: `map[string]*docSync{base, version,
   loaded, saving, dirty, refetch, saveDone, saveFails, saveAfter}`.
   `flush` saves each machine whose part of `a.doc` differs from its
@@ -119,10 +180,8 @@ remote machines and learn to read, write and show them.
 - `spawn` passes `On: machineOf(space)`, a cwd on that machine, and
   unqualified ids in `herdr.space` and `herdr.tab`. The returned address
   (`mac/t7`) is what the pane stores.
-- `launchArgv` for a remote machine does not use the local `$SHELL`:
-  `["sh", "-lc", "\"$@\"; exec \"${SHELL:-sh}\" -il", "sh", cmd…]`. On
-  `spawn_failed` with "not found", it tries PowerShell (`-NoExit -Command`)
-  as herdr-app does.
+- `launchArgv` for a remote machine uses herdr-app's remote launch script
+  (above), not the local `$SHELL`. No PowerShell fallback.
 - `terminal.keep` and `terminal.park` accept remote addresses.
   `space.new --machine mac` and `tab.new` in a remote space start there.
 
@@ -135,27 +194,39 @@ remote machines and learn to read, write and show them.
   machine). The agents list labels remote agents `mac · space / tab`.
 - **Status bar.** "This computer" becomes the machines: "This computer ·
   2 machines" with a dot per state. A click opens Settings → Machines.
-- **Settings → Machines** (new page, between Mods and Files). For each
-  machine: name, target, host, version, state and why, with Connect,
-  Rename and Remove. Add takes a target (`user@host`, as the core expects)
-  and a name. `needs_login` and `needs_update` show the core's hint and
-  what to do. Machines live in the core, not in Shiori's files, so this
-  page is their only control.
+- **Settings → Machines** (new page, between Mods and Files), herdr-app's
+  settings Machines section:
+  - Each machine: name, target, host, version, state and why. Rename, and
+    Remove (confirmed inline).
+  - Update when its core is older than this one's.
+  - Log in for `needs_login`: `hc machine login <name>` in a new tab.
+  - Add: the `~/.ssh/config` hosts to pick from, or a typed target.
+    `hc machine add <target> --json`; when it needs a person, the same
+    command without `--json` in a new tab, and the list polled until the
+    machine is there.
+  - Machines live in the core, not in Shiori's files, so this page is
+    their only control.
+- **`hc`** is found as the core binary is (`internal/core/discover.go`:
+  `../libexec/shiori` beside Shiori, then `PATH` and the usual folders).
+  A small runner in `internal/core` (or a new `internal/hccli`) runs
+  `hc … --json` with a timeout and decodes `{error:{kind,message}}`.
 - **Commands** for scripts and mods:
   - `machine.list` answers the list.
-  - `machine.add {target, name}`, `machine.connect {name}`,
-    `machine.rename {name, to}` and `machine.remove {name}` mirror the
-    core.
-  - `space.new {machine}` already has its argument.
+  - `machine.add {target}`, `machine.rename {name, to}`,
+    `machine.remove {name}` and `machine.update {name}` run the `hc`
+    commands.
+  - `space.new {machine}` already has its argument; with a machine and no
+    folder, the space starts in that machine's home.
 - **`ls` and `status`** add `machine` to spaces and panes, and a
   `machines` list.
 
 ### Features that touch the local disk
 
 - **Changes panel** on a remote space: run `git status --porcelain=v1 -z
-  --untracked-files=all` there with `machine.exec`, if its parameters
-  allow (Open questions), and feed the same parser (`internal/changes`
-  takes a runner). The walk outside git is not offered remotely: "Changes
+  --untracked-files=all` there with `hc exec --json --on <m> --cwd <dir>`
+  (stdout base64), and feed the same parser (`internal/changes` takes a
+  runner; `rev-parse --show-toplevel` the same way). Times come from
+  `stat` there, or are the times the files were first seen changed. The walk outside git is not offered remotely: "Changes
   outside git are not shown for other machines". The diff tab opens a
   terminal on that machine; "Open in editor" is local only and is hidden
   for remote files.
@@ -167,55 +238,46 @@ remote machines and learn to read, write and show them.
 
 ## Phases (one commit each)
 
-0. **Learn the machine methods.** On the owner's machine, with a real
-   core, get the methods' schemas:
-
-   ```bash
-   printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"hello","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"rpc.discover","params":{}}' | hc connect
-   ```
-
-   Or read herdr-app's `machines` code. Record `machine.add`, `connect`,
-   `rename`, `rm` and `exec` parameters and errors in docs/PROTOCOL.md §4.
-   Until this is known, phases 1–3 can go ahead; phase 4's Add, and phase
-   5's remote changes, wait.
-1. **Core client.** `Change.DocMachines`. Typed helpers `MachineAdd`,
-   `MachineConnect`, `MachineRename`, `MachineRemove`, `MachineExec`.
-   Tests in `internal/core` with the fake core (`fake_test.go`).
+0. **Learn how machines are managed.** Done: herdr-app uses the `hc`
+   command (above).
+1. **Core side.**
+   - `core.Change.DocMachines`, from doc events' `machine`.
+   - An `hc` runner: find the binary, run `hc … --json` with a timeout,
+     decode results and `{error:{kind,message}}`. Helpers `MachineList`,
+     `MachineAdd`, `MachineRename`, `MachineRemove`, `MachineUpdate`, and
+     `Exec(machine, cwd, argv)` ⇒ code, stdout, stderr.
+   - Tests: the fake core (`fake_test.go`); a fake `hc` script on `PATH`.
 2. **Layout per machine, read and shown.**
-   - `layout.Qualify`, `Split` and `MachineOf`, with tests, unknown fields
-     round-tripping.
-   - Per-machine sync state; read every connected machine's document; the
-     machines poll; remote spaces in the sidebar; remote panes attach.
+   - `Space.Machine`; `layout.Qualify`, `Split` and `MachineOf`, with
+     tests, unknown fields round-tripping.
+   - Per-machine sync state; read every connected machine's document;
+     poll `machine.list` (temporary ones left out); remote spaces in the
+     sidebar; remote panes attach; a machine that leaves takes its spaces
+     away.
    - Writing is still local only, so remote spaces are read only in this
      phase.
    - `fakeBackend` gains machines and a document per machine.
 3. **Writing and terminals.**
-   - Per-machine `flush` and conflicts.
-   - Spawn, split, close, rename, move, adopt, keep and park on other
-     machines; remote `launchArgv`; the PowerShell fallback.
+   - Per-machine `flush` and conflicts; moves inside a machine's block.
+   - Spawn, split, close, rename, adopt, keep and park on other machines;
+     herdr-app's remote launch script.
    - Disconnected machines read only.
-   - `space.new --machine`.
+   - `space.new --machine`, starting in that machine's home.
 4. **Machines in the window.** Sidebar groups, status bar, Settings →
-   Machines, `machine.*` commands, `ls`/`status` fields, the
-   `machine.changed` event.
-5. **Remote-aware features.** Changes panel through `machine.exec`;
+   Machines (with Add from `~/.ssh/config`, the add-in-a-tab path, Rename,
+   Remove, Update, Log in), `machine.*` commands, `ls`/`status` fields,
+   the `machine.changed` event.
+5. **Remote-aware features.** Changes panel through `hc exec`;
    `SHIORI_MACHINE`; machine fields in events; paths shortened only
    locally; "Open in editor" local only.
-6. **Docs.** README (features; Machines page), docs/PROTOCOL.md (what
-   phase 0 found), docs/CONTRACTS.md (layout and core additions),
-   docs/MODS.md (events). Screenshots checked by eye (`ui.Tester` image to
-   PNG, then read it).
+6. **Docs.** README (features; Machines page; "Work on another machine"),
+   docs/PROTOCOL.md (the `hc` commands above), docs/CONTRACTS.md (layout
+   and core additions), docs/MODS.md (events). Screenshots checked by eye
+   (`ui.Tester` image to PNG, then read it).
+7. **On real machines** (with the owner): add the Proxmox node and the
+   workstation; spaces, terminals, agents, reconnects, removal.
 
-## Open questions (for the owner)
+## Open questions
 
-- `machine.add`: what is a target (`user@host`, an SSH config host, a
-  URL)? Does the core install itself on the other machine, or must `hc` be
-  there already?
-- What does `needs_login` ask the person to do, and can Shiori do it, or
-  only show the core's hint?
-- Should `temporary` machines (herdr-app ignores them) show?
-- Remote Windows machines: keep herdr-app's PowerShell fallback, or leave
-  Windows remotes out?
-- Testing: is there a second machine (or VM, or container with sshd) to
-  try phases 2–5 against a real core? The tests here can only use a fake
-  core.
+- None blocking. Whether temporary machines should ever show stays as
+  herdr-app has it (they do not).
