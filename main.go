@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"runtime"
 	"strings"
@@ -157,8 +156,5 @@ func openWindow(home string) error {
 			mygo.App.Quit()
 		}
 	})
-	if err := mygo.App.Run(); err != nil {
-		log.Fatal(err)
-	}
-	return nil
+	return mygo.App.Run()
 }

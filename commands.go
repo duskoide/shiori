@@ -2,7 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +18,7 @@ import (
 	"github.com/duskoide/herdr-mygo/internal/agent"
 	"github.com/duskoide/herdr-mygo/internal/core"
 	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/herdr-mygo/internal/theme"
 )
 
 // command is something the person or an agent can do: keys, menus, the
@@ -69,21 +75,21 @@ var commands []*command
 
 func init() {
 	commands = []*command{
-		{Name: "space.new", Title: "New space", About: "Make a space with a terminal in folder", Args: []argDef{arg("name"), arg("folder")}, run: (*App).cmdSpaceNew},
+		{Name: "space.new", Title: "New space", About: "Make a space with a terminal in folder", Args: []argDef{arg("name"), arg("folder"), arg("tab"), arg("argv"), arg("task"), arg("machine")}, run: (*App).cmdSpaceNew},
 		{Name: "space.close", Title: "Close space", About: "Close a space and end its terminals", Args: []argDef{arg("id"), arg("confirmed")}, run: (*App).cmdSpaceClose},
 		{Name: "space.rename", Title: "Rename space", Args: []argDef{arg("id"), arg("name")}, run: (*App).cmdSpaceRename},
 		{Name: "space.select", Title: "Select space", Args: []argDef{arg("index"), arg("id")}, hidden: true, run: (*App).cmdSpaceSelect},
 		{Name: "space.next", Title: "Next space", run: func(a *App, _ args) (any, error) { return nil, a.cycleSpace(1) }},
 		{Name: "space.prev", Title: "Previous space", run: func(a *App, _ args) (any, error) { return nil, a.cycleSpace(-1) }},
 		{Name: "space.move", Title: "Move space", Args: []argDef{required("id"), required("index")}, hidden: true, run: (*App).cmdSpaceMove},
-		{Name: "tab.new", Title: "New tab", About: "Open a tab with a terminal in the focused folder", Args: []argDef{arg("name"), arg("space"), arg("folder"), arg("argv")}, run: (*App).cmdTabNew},
+		{Name: "tab.new", Title: "New tab", About: "Open a tab with a terminal in the focused folder", Args: []argDef{arg("name"), arg("space"), arg("folder"), arg("argv"), arg("task"), arg("mod"), arg("props")}, run: (*App).cmdTabNew},
 		{Name: "tab.close", Title: "Close tab", Args: []argDef{arg("id"), arg("confirmed")}, run: (*App).cmdTabClose},
 		{Name: "tab.rename", Title: "Rename tab", Args: []argDef{arg("id"), arg("name")}, run: (*App).cmdTabRename},
 		{Name: "tab.select", Title: "Select tab", Args: []argDef{arg("index"), arg("id")}, hidden: true, run: (*App).cmdTabSelect},
 		{Name: "tab.next", Title: "Next tab", run: func(a *App, _ args) (any, error) { return nil, a.cycleTab(1) }},
 		{Name: "tab.prev", Title: "Previous tab", run: func(a *App, _ args) (any, error) { return nil, a.cycleTab(-1) }},
 		{Name: "tab.move", Title: "Move tab", Args: []argDef{required("id"), required("index")}, hidden: true, run: (*App).cmdTabMove},
-		{Name: "pane.split", Title: "Split pane", Args: []argDef{required("direction"), arg("pane"), arg("argv")}, hidden: true, run: (*App).cmdPaneSplit},
+		{Name: "pane.split", Title: "Split pane", Args: []argDef{required("direction"), arg("pane"), arg("argv"), arg("task"), arg("mod"), arg("props")}, hidden: true, run: (*App).cmdPaneSplit},
 		{Name: "pane.split:right", Title: "Split right", run: func(a *App, _ args) (any, error) { return a.cmdPaneSplit(args{"direction": "right"}) }},
 		{Name: "pane.split:down", Title: "Split down", run: func(a *App, _ args) (any, error) { return a.cmdPaneSplit(args{"direction": "down"}) }},
 		{Name: "pane.close", Title: "Close pane", Args: []argDef{arg("pane")}, run: (*App).cmdPaneClose},
@@ -94,6 +100,9 @@ func init() {
 		{Name: "agent.focus", Title: "Focus agent", Args: []argDef{required("terminal")}, hidden: true, run: (*App).cmdAgentFocus},
 		{Name: "agent.next", Title: "Next agent", run: func(a *App, _ args) (any, error) { return nil, a.cycleAgent(1) }},
 		{Name: "agent.prev", Title: "Previous agent", run: func(a *App, _ args) (any, error) { return nil, a.cycleAgent(-1) }},
+		{Name: "terminal.open", Title: "Open terminal", About: "Start a terminal as a new tab, or right/down of the focused pane", Args: []argDef{arg("argv"), arg("folder"), arg("place"), arg("name")}, hidden: true, run: (*App).cmdTerminalOpen},
+		{Name: "terminal.keep", Title: "Keep terminal", About: "Give a running terminal without a pane a pane", Args: []argDef{required("terminal"), arg("place")}, hidden: true, run: (*App).cmdTerminalKeep},
+		{Name: "terminal.park", Title: "Park terminal", About: "Take a terminal's pane away; it keeps running", Args: []argDef{required("terminal")}, hidden: true, run: (*App).cmdTerminalPark},
 		{Name: "terminal.kill", Title: "Kill terminal", Args: []argDef{required("terminal")}, hidden: true, run: (*App).cmdTerminalKill},
 		{Name: "terminal.pin", Title: "Pin agent", Args: []argDef{required("terminal"), required("pinned")}, hidden: true, run: (*App).cmdTerminalPin},
 		{Name: "layout.toggle", Title: "Toggle sidebar", Args: []argDef{arg("id")}, run: (*App).cmdLayoutToggle},
@@ -115,6 +124,15 @@ func init() {
 	}
 }
 
+// unsupported are herdr-app's commands this app does not implement.
+var unsupported = []string{
+	"terminal.peek", "terminal.show", "terminal.right_click", "terminal.copy", "terminal.paste", "terminal.paste_image",
+	"tab.settle", "tab.unsettle", "overlay.close", "mod.clone",
+	"layout.switch", "layout.clone", "layout.set", "layout.show", "layout.hide", "layout.resize", "layout.select", "layout.reset",
+	"app.welcome", "app.whats_new", "app.feedback", "app.check_updates", "app.update_core", "app.reset", "app.update",
+	"app.hide", "app.hide_others", "app.show_all", "window.minimize", "window.maximize",
+}
+
 func findCommand(name string) *command {
 	for _, c := range commands {
 		if c.Name == name {
@@ -128,6 +146,9 @@ func findCommand(name string) *command {
 func (a *App) do(name string, v args) (any, error) {
 	c := findCommand(name)
 	if c == nil {
+		if slices.Contains(unsupported, name) {
+			return nil, fmt.Errorf("%s is not supported by this app", name)
+		}
 		return nil, fmt.Errorf("unknown command %q", name)
 	}
 	if v == nil {
@@ -203,13 +224,21 @@ func (a *App) ready() error {
 func (a *App) spawn(spaceID, tabID, cwd string, argv []string, place func(addr string)) {
 	be := a.core
 	labels := map[string]string{"herdr.space": spaceID, "herdr.tab": tabID, "herdr.seen": "0"}
+	a.obtain(tabID, func(ctx context.Context) (string, error) {
+		return be.Run(ctx, core.RunParams{Argv: argv, Cwd: cwd, Labels: labels, Keep: true})
+	}, place)
+}
+
+// obtain gets a terminal with work, off the main thread, and calls place
+// with its address once it is there and no pane shows it.
+func (a *App) obtain(tabID string, work func(ctx context.Context) (string, error), place func(addr string)) {
 	// Until place runs, the core may tell of the terminal: it is not an
 	// orphan to adopt.
 	a.spawning[tabID]++
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		addr, err := be.Run(ctx, core.RunParams{Argv: argv, Cwd: cwd, Labels: labels, Keep: true})
+		addr, err := work(ctx)
 		a.post(func() {
 			if a.spawning[tabID]--; a.spawning[tabID] <= 0 {
 				delete(a.spawning, tabID)
@@ -221,6 +250,7 @@ func (a *App) spawn(spaceID, tabID, cwd string, argv []string, place func(addr s
 			if a.doc == nil {
 				return
 			}
+			delete(a.gone, addr)
 			a.pending[addr] = time.Now()
 			if _, _, p := a.doc.PaneOfTerminal(addr); p == nil {
 				place(addr)
@@ -242,44 +272,115 @@ func (a *App) focusedFolder() string {
 	return homeDir()
 }
 
-func argvOf(v args) []string {
+// argvOf reads the argv argument: a list, a JSON array in a string
+// ('["claude","--x"]'), or words split on whitespace.
+func argvOf(v args) ([]string, error) {
 	switch x := v["argv"].(type) {
 	case []any:
-		var out []string
+		out := make([]string, 0, len(x))
 		for _, e := range x {
-			if s, ok := e.(string); ok {
-				out = append(out, s)
+			s, ok := e.(string)
+			if !ok {
+				return nil, fmt.Errorf("argv holds strings only")
 			}
+			out = append(out, s)
 		}
-		return out
+		return out, nil
 	case []string:
-		return x
+		return x, nil
 	case string:
-		if x != "" {
-			return strings.Fields(x)
+		x = strings.TrimSpace(x)
+		if strings.HasPrefix(x, "[") {
+			var out []string
+			if err := json.Unmarshal([]byte(x), &out); err != nil {
+				return nil, fmt.Errorf("argv is a JSON array of strings: %w", err)
+			}
+			return out, nil
 		}
+		return strings.Fields(x), nil
+	}
+	return nil, nil
+}
+
+// launchArgv is what a new terminal runs: the argv given, with the task
+// as its first message, in a shell that stays when the program exits, as
+// herdr-app does. Without an argv it is nil: the default shell.
+func launchArgv(v args) ([]string, error) {
+	argv, err := argvOf(v)
+	if err != nil || len(argv) == 0 {
+		return nil, err
+	}
+	cmd := slices.Clone(argv)
+	if task := v.str("task"); task != "" {
+		cmd = append(cmd, task)
+	}
+	sh := os.Getenv("SHELL")
+	if sh == "" {
+		sh = "/bin/sh"
+	}
+	if runtime.GOOS == "windows" {
+		quoted := make([]string, len(cmd))
+		for i, w := range cmd {
+			quoted[i] = "'" + strings.ReplaceAll(w, "'", "''") + "'"
+		}
+		return []string{"powershell.exe", "-NoExit", "-Command", "& " + strings.Join(quoted, " ")}, nil
+	}
+	// macOS terminal sessions load login profiles.
+	shellFlag, rcFlag := "-ic", "-i"
+	if runtime.GOOS == "darwin" {
+		shellFlag, rcFlag = "-lic", "-li"
+	}
+	script := `"$@"; exec "$0" ` + rcFlag
+	if filepath.Base(sh) == "fish" {
+		script = "command $argv[2..]; exec $argv[1] " + rcFlag
+	}
+	return append([]string{sh, shellFlag, script, sh}, cmd...), nil
+}
+
+// noMods rejects the mod and props arguments: this app has no mods.
+func noMods(v args) error {
+	if v.str("mod") != "" || v["props"] != nil {
+		return fmt.Errorf("mods are not supported by this app")
 	}
 	return nil
+}
+
+// localMachine reports whether name is this machine.
+func localMachine(name string) bool {
+	if name == "" || name == "local" || name == "localhost" {
+		return true
+	}
+	h, _ := os.Hostname()
+	return h != "" && name == h
 }
 
 func (a *App) cmdSpaceNew(v args) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
+	if m := v.str("machine"); !localMachine(m) {
+		return nil, fmt.Errorf("machine %q is not supported by this app: only this machine", m)
+	}
+	argv, err := launchArgv(v)
+	if err != nil {
+		return nil, err
+	}
 	folder := v.str("folder")
 	if folder == "" {
-		folder = homeDir()
+		if folder = a.cwdOf(a.pane()); folder == "" {
+			folder = homeDir()
+		}
 	}
 	// The space appears with its first terminal: an empty one would be
 	// pruned.
-	name, spaceID, tabID := v.str("name"), layout.NewID("sp"), layout.NewID("tb")
-	a.spawn(spaceID, tabID, folder, argvOf(v), func(addr string) {
+	name, tabName, spaceID, tabID := v.str("name"), v.str("tab"), layout.NewID("sp"), layout.NewID("tb")
+	a.spawn(spaceID, tabID, folder, argv, func(addr string) {
 		s := a.doc.Space(spaceID)
 		if s == nil {
 			s = a.doc.AddSpace(name, folder)
 			s.ID = spaceID
 		}
-		t, p := s.AddTab("", addr)
+		t, p := s.AddTab(tabName, addr)
 		retab(t, tabID)
 		a.activeSpace, a.activeTab[s.ID] = s.ID, t.ID
 		a.setFocus(t, p.ID)
@@ -422,8 +523,11 @@ func (a *App) cmdSpaceMove(v args) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	n, _ := v.int("index")
-	if !a.doc.MoveSpace(v.str("id"), n) {
+	n, ok := v.int("index")
+	if !ok || n < 1 {
+		return nil, fmt.Errorf("space.move index is a position, 1 = first")
+	}
+	if !a.doc.MoveSpace(v.str("id"), n-1) {
 		return nil, fmt.Errorf("no space %q", v.str("id"))
 	}
 	a.changed()
@@ -434,19 +538,28 @@ func (a *App) cmdTabNew(v args) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
+	if err := noMods(v); err != nil {
+		return nil, err
+	}
 	s := a.space()
 	if id := v.str("space"); id != "" {
-		s = a.doc.Space(id)
+		if s = a.doc.Space(id); s == nil {
+			return nil, fmt.Errorf("no space %q", id)
+		}
 	}
 	if s == nil {
-		return a.cmdSpaceNew(args{"folder": v.str("folder"), "argv": v["argv"]})
+		return a.cmdSpaceNew(args{"folder": v.str("folder"), "argv": v["argv"], "task": v.str("task")})
+	}
+	argv, err := launchArgv(v)
+	if err != nil {
+		return nil, err
 	}
 	folder := v.str("folder")
 	if folder == "" {
 		folder = a.focusedFolder()
 	}
 	spaceID, tabID, name := s.ID, layout.NewID("tb"), v.str("name")
-	a.spawn(spaceID, tabID, folder, argvOf(v), func(addr string) {
+	a.spawn(spaceID, tabID, folder, argv, func(addr string) {
 		s := a.doc.Space(spaceID)
 		if s == nil {
 			return
@@ -562,8 +675,11 @@ func (a *App) cmdTabMove(v args) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	n, _ := v.int("index")
-	s.MoveTab(t.ID, n)
+	n, ok := v.int("index")
+	if !ok || n < 1 {
+		return nil, fmt.Errorf("tab.move index is a position, 1 = first")
+	}
+	s.MoveTab(t.ID, n-1)
 	a.changed()
 	return nil, nil
 }
@@ -604,16 +720,34 @@ func (a *App) cmdPaneSplit(v args) (any, error) {
 	if !ok || (dir != layout.Right && dir != layout.Down) {
 		return nil, fmt.Errorf("direction is right or down")
 	}
+	if err := noMods(v); err != nil {
+		return nil, err
+	}
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	argv, err := launchArgv(v)
+	if err != nil {
+		return nil, err
+	}
+	// Without a pane to split a new tab is the next best thing; a pane that
+	// was named but is not there is an error.
+	if v.str("pane") == "" && a.pane() == nil {
+		return a.cmdTabNew(args{"argv": v["argv"], "task": v.str("task"), "folder": v.str("folder")})
+	}
 	s, t, p, err := a.paneArg(v)
 	if err != nil {
-		return a.cmdTabNew(args{"argv": v["argv"]})
+		return nil, err
 	}
-	cwd := a.cwdOf(p)
+	cwd := v.str("folder")
+	if cwd == "" {
+		cwd = a.cwdOf(p)
+	}
 	if cwd == "" {
 		cwd = a.focusedFolder()
 	}
 	paneID, tabID := p.ID, t.ID
-	a.spawn(s.ID, t.ID, cwd, argvOf(v), func(addr string) {
+	a.spawn(s.ID, t.ID, cwd, argv, func(addr string) {
 		_, t := a.doc.Tab(tabID)
 		if t == nil {
 			return
@@ -633,19 +767,25 @@ func (a *App) cmdPaneSplit(v args) (any, error) {
 	return nil, nil
 }
 
-func (a *App) cmdPaneClose(v args) (any, error) {
-	s, t, p, err := a.paneArg(v)
-	if err != nil {
-		return nil, err
-	}
-	a.killPanes([]*layout.Node{p})
-	t.RemovePane(p.ID)
+// dropPane removes a pane from its tab, and the tab and space when that
+// leaves them empty.
+func (a *App) dropPane(s *layout.Space, t *layout.Tab, paneID string) {
+	t.RemovePane(paneID)
 	if len(t.Panes()) == 0 {
 		s.RemoveTab(t.ID)
 		if len(s.Tabs) == 0 {
 			a.doc.RemoveSpace(s.ID)
 		}
 	}
+}
+
+func (a *App) cmdPaneClose(v args) (any, error) {
+	s, t, p, err := a.paneArg(v)
+	if err != nil {
+		return nil, err
+	}
+	a.killPanes([]*layout.Node{p})
+	a.dropPane(s, t, p.ID)
 	a.changed()
 	a.focusReq = a.focus[a.activeTab[a.activeSpace]]
 	return nil, nil
@@ -753,6 +893,141 @@ func (a *App) cycleAgent(d int) error {
 	return nil
 }
 
+// cmdTerminalOpen starts a terminal as a new tab, or beside the focused pane.
+func (a *App) cmdTerminalOpen(v args) (any, error) {
+	switch place := v.str("place"); place {
+	case "right", "down":
+		return a.cmdPaneSplit(args{"direction": place, "argv": v["argv"], "folder": v.str("folder")})
+	case "", "tab":
+		name := v.str("name")
+		if argv, err := argvOf(v); err != nil {
+			return nil, err
+		} else if name == "" && len(argv) > 0 {
+			name = filepath.Base(argv[0])
+		} else if name == "" {
+			name = "shell"
+		}
+		return a.cmdTabNew(args{"name": name, "argv": v["argv"], "folder": v.str("folder")})
+	default:
+		return nil, fmt.Errorf("place is tab, right or down")
+	}
+}
+
+// localTerminal checks that addr names a terminal of this machine.
+func localTerminal(addr string) error {
+	if strings.Contains(addr, "/") {
+		return fmt.Errorf("terminal %q is on another machine: only this machine is supported by this app", addr)
+	}
+	return nil
+}
+
+// cmdTerminalKeep gives a running terminal that has no pane one: a new tab
+// of the shown space, or right/down of the focused pane.
+func (a *App) cmdTerminalKeep(v args) (any, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	addr := v.str("terminal")
+	if err := localTerminal(addr); err != nil {
+		return nil, err
+	}
+	if _, _, p := a.doc.PaneOfTerminal(addr); p != nil {
+		a.show(p.ID)
+		return map[string]string{"pane": p.ID}, nil
+	}
+	if rec, ok := a.terminals[addr]; !ok || rec.State != "live" {
+		return nil, fmt.Errorf("no running terminal %q", addr)
+	}
+	place := v.str("place")
+	if place == "" {
+		place = "tab"
+	}
+	dir, split := direction(place)
+	if place != "tab" && (!split || (dir != layout.Right && dir != layout.Down)) {
+		return nil, fmt.Errorf("place is tab, right or down")
+	}
+	s := a.space()
+	if s == nil {
+		return nil, fmt.Errorf("no space to keep it in")
+	}
+	var targetID string
+	tabID := layout.NewID("tb")
+	if split {
+		if p := a.pane(); p != nil {
+			targetID, tabID = p.ID, a.tab().ID
+		}
+	}
+	spaceID, be := s.ID, a.core
+	labels := map[string]string{"herdr.space": spaceID, "herdr.tab": tabID}
+	a.obtain(tabID, func(ctx context.Context) (string, error) {
+		if err := be.Label(ctx, addr, labels); err != nil {
+			return "", err
+		}
+		return addr, be.Keep(ctx, addr, true)
+	}, func(addr string) {
+		if targetID != "" {
+			if _, t, p := a.doc.Pane(targetID); p != nil {
+				if n, err := t.Split(targetID, dir, addr); err == nil {
+					delete(a.zoomed, t.ID)
+					a.setFocus(t, n.ID)
+					a.focusReq = n.ID
+					return
+				}
+			}
+		}
+		s := a.doc.Space(spaceID)
+		if s == nil {
+			return
+		}
+		t, p := s.AddTab("", addr)
+		if _, other := a.doc.Tab(tabID); other == nil {
+			retab(t, tabID)
+		}
+		a.activeSpace, a.activeTab[s.ID] = s.ID, t.ID
+		a.setFocus(t, p.ID)
+		a.focusReq = p.ID
+	})
+	return map[string]any{"pending": true, "terminal": addr, "tab": tabID}, nil
+}
+
+// cmdTerminalPark takes a terminal's pane away and stops the core keeping
+// it; it keeps running.
+func (a *App) cmdTerminalPark(v args) (any, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	addr := v.str("terminal")
+	if err := localTerminal(addr); err != nil {
+		return nil, err
+	}
+	if _, ok := a.terminals[addr]; !ok {
+		return nil, fmt.Errorf("no terminal %q", addr)
+	}
+	be := a.core
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		err := be.Label(ctx, addr, map[string]string{"herdr.space": "", "herdr.tab": ""})
+		if err == nil {
+			err = be.Keep(ctx, addr, false)
+		}
+		a.post(func() {
+			if err != nil {
+				a.notify("cannot park " + addr + ": " + err.Error())
+				return
+			}
+			// The core's record may still carry the old labels for a moment.
+			a.gone[addr] = true
+			if s, t, p := a.doc.PaneOfTerminal(addr); p != nil {
+				a.dropPane(s, t, p.ID)
+			}
+			a.changed()
+			a.focusReq = a.focus[a.activeTab[a.activeSpace]]
+		})
+	}()
+	return map[string]any{"pending": true, "terminal": addr}, nil
+}
+
 func (a *App) cmdTerminalKill(v args) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
@@ -811,7 +1086,11 @@ func (a *App) cmdModOpen(v args) (any, error) {
 }
 
 func (a *App) cmdAppTheme(v args) (any, error) {
-	a.cfg.Theme = v.str("name")
+	name := v.str("name")
+	if !slices.Contains(theme.PresetNames, name) {
+		return nil, fmt.Errorf("no theme %q; themes: %s", name, strings.Join(theme.PresetNames, ", "))
+	}
+	a.cfg.Theme = name
 	a.applyTheme()
 	a.saveSettings()
 	return nil, nil
