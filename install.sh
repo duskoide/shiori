@@ -3,9 +3,10 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/duskoide/shiori/main/install.sh | sh
 #
-# Downloads the release binary for this OS and CPU (falling back to a source
-# build with Go when there is none), puts it in ~/.local/bin and, on Linux,
-# adds a desktop entry. Run with --help for the options.
+# Downloads the release for this OS and CPU (falling back to a source build
+# with Go when there is none), puts shiori in ~/.local/bin and the herdr-core
+# it bundles in ~/.local/libexec/shiori, and on Linux adds a desktop entry.
+# Run with --help for the options.
 #
 # While the repository is private, pass a GitHub token that can read it:
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -18,6 +19,7 @@ VERSION="${SHIORI_VERSION:-latest}"
 BIN_DIR="${SHIORI_INSTALL_DIR:-$HOME/.local/bin}"
 FROM_SOURCE=0
 DESKTOP=1
+CORE=1
 UNINSTALL=0
 
 say() { printf '\033[1;35mshiori:\033[0m %s\n' "$*"; }
@@ -37,6 +39,7 @@ Options:
   --dir <path>      where the binary goes (default: ~/.local/bin)
   --from-source     build with Go instead of downloading a release
   --no-desktop      on Linux, skip the .desktop entry and icon
+  --no-core         skip the bundled herdr-core (use your own hc)
   --uninstall       remove what this script installed
   -h, --help        this help
 
@@ -55,6 +58,7 @@ while [ $# -gt 0 ]; do
 	--dir=*) BIN_DIR="${1#*=}"; shift ;;
 	--from-source) FROM_SOURCE=1; shift ;;
 	--no-desktop) DESKTOP=0; shift ;;
+	--no-core) CORE=0; shift ;;
 	--uninstall) UNINSTALL=1; shift ;;
 	-h | --help) usage; exit 0 ;;
 	*) die "unknown option: $1 (see --help)" ;;
@@ -74,14 +78,19 @@ aarch64 | arm64) ARCH=arm64 ;;
 *) die "unsupported architecture: $(uname -m) (amd64 and arm64 are supported)" ;;
 esac
 
+case "$BIN_DIR" in /*) ;; *) BIN_DIR="$PWD/$BIN_DIR" ;; esac
+# shiori looks for its herdr-core in ../libexec/shiori from its own directory.
+CORE_DIR="$(dirname "$BIN_DIR")/libexec/shiori"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 DESKTOP_FILE="$DATA_HOME/applications/dev.duskoide.shiori.desktop"
 ICON_FILE="$DATA_HOME/icons/hicolor/256x256/apps/dev.duskoide.shiori.png"
 
 if [ "$UNINSTALL" = 1 ]; then
 	rm -f "$BIN_DIR/shiori" "$DESKTOP_FILE" "$ICON_FILE"
+	rm -rf "$CORE_DIR"
 	if has update-desktop-database; then update-desktop-database "$DATA_HOME/applications" 2>/dev/null || true; fi
-	say "removed $BIN_DIR/shiori and the desktop entry (settings in ~/.config/shiori are kept)"
+	say "removed $BIN_DIR/shiori, $CORE_DIR and the desktop entry"
+	say "settings in ~/.config/shiori are kept; a running core keeps running until 'hc server stop'"
 	exit 0
 fi
 
@@ -174,7 +183,7 @@ download_release() {
 
 	mkdir -p "$TMP/x"
 	tar -xzf "$TMP/$asset" -C "$TMP/x" || die "could not unpack $asset"
-	[ -f "$TMP/x/shiori" ] || die "$asset has no shiori binary"
+	[ -f "$TMP/x/bin/shiori" ] || die "$asset has no bin/shiori"
 }
 
 # --- build from source ------------------------------------------------------
@@ -196,23 +205,64 @@ Install Go (https://go.dev/dl) and run again, or pick a release with --version."
 	fi
 	version="${ref#v}"
 	[ "$ref" = main ] && version="0.0.0+$(git -C "$TMP/src" rev-parse --short HEAD)"
-	mkdir -p "$TMP/x"
+	mkdir -p "$TMP/x/bin"
 	# MyGo needs no cgo; GOTOOLCHAIN=auto fetches the Go the module asks for.
 	(cd "$TMP/src" && CGO_ENABLED=0 GOTOOLCHAIN="${GOTOOLCHAIN:-auto}" \
-		go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$TMP/x/shiori" ./cmd/shiori)
+		go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$TMP/x/bin/shiori" ./cmd/shiori)
 	cp "$TMP/src/assets/icon.png" "$TMP/x/icon.png"
+}
+
+# --- herdr-core for source builds -------------------------------------------
+
+# find_core prints a herdr-core/hc that shiori would find, if there is one.
+find_core() {
+	for f in "$CORE_DIR/herdr-core" "$CORE_DIR/hc" "$(command -v herdr-core 2>/dev/null)" \
+		"$(command -v hc 2>/dev/null)" "$HOME/.local/bin/herdr-core" "$HOME/.local/bin/hc"; do
+		if [ -n "$f" ] && [ -x "$f" ] && "$f" --version 2>/dev/null | grep -q '^hc '; then
+			echo "$f"
+			return
+		fi
+	done
+}
+
+# fetch_core puts herdr-core from its official installer into $TMP/x/libexec/shiori.
+fetch_core() {
+	say "fetching herdr-core with its installer (https://releases.herdr.dev/core/install.sh)"
+	mkdir -p "$TMP/core/home" "$TMP/core/bin" "$TMP/x/libexec/shiori"
+	fetch https://releases.herdr.dev/core/install.sh "$TMP/core/install.sh" ||
+		{ warn "could not download the herdr-core installer"; return 1; }
+	HOME="$TMP/core/home" HC_INSTALL_DIR="$TMP/core/bin" SHELL=/bin/sh sh "$TMP/core/install.sh" >/dev/null ||
+		{ warn "the herdr-core installer failed"; return 1; }
+	for d in "$TMP/core/bin" "$TMP/core/home/.local/bin"; do
+		for n in herdr-core hc; do
+			if [ -e "$d/$n" ] && [ ! -e "$TMP/x/libexec/shiori/$n" ]; then
+				cp -L "$d/$n" "$TMP/x/libexec/shiori/$n"
+			fi
+		done
+	done
 }
 
 # --- place files ------------------------------------------------------------
 
-install_files() { # install_files <dir with shiori and icon.png>
+put() { # put <src> <dst>: write next to the target and rename, so a running copy is not clobbered
+	cp -L "$1" "$2.new"
+	chmod 755 "$2.new"
+	mv -f "$2.new" "$2"
+	if [ "$OS" = darwin ]; then xattr -d com.apple.quarantine "$2" 2>/dev/null || true; fi
+}
+
+install_files() { # install_files <staged prefix: bin/shiori, libexec/shiori/*, icon.png>
 	mkdir -p "$BIN_DIR"
-	# Write next to the target and rename, so a running shiori is not clobbered.
-	cp "$1/shiori" "$BIN_DIR/.shiori.new"
-	chmod 755 "$BIN_DIR/.shiori.new"
-	mv -f "$BIN_DIR/.shiori.new" "$BIN_DIR/shiori"
-	if [ "$OS" = darwin ]; then xattr -d com.apple.quarantine "$BIN_DIR/shiori" 2>/dev/null || true; fi
+	put "$1/bin/shiori" "$BIN_DIR/shiori"
 	say "installed $BIN_DIR/shiori"
+
+	if [ "$CORE" = 1 ] && [ -d "$1/libexec/shiori" ] && [ -n "$(ls "$1/libexec/shiori")" ]; then
+		mkdir -p "$CORE_DIR"
+		for f in "$1"/libexec/shiori/*; do
+			put "$f" "$CORE_DIR/$(basename "$f")"
+		done
+		say "installed herdr-core $("$CORE_DIR/$(ls "$CORE_DIR" | head -1)" --version 2>/dev/null | cut -d' ' -f2) to $CORE_DIR"
+	fi
 
 	[ "$OS" = linux ] && [ "$DESKTOP" = 1 ] || return 0
 	mkdir -p "$(dirname "$DESKTOP_FILE")"
@@ -238,11 +288,14 @@ EOF
 
 # --- main -------------------------------------------------------------------
 
-if [ "$FROM_SOURCE" = 1 ]; then
+if [ "$FROM_SOURCE" = 0 ] && download_release; then
+	: # the release archive bundles herdr-core
+else
+	[ "$FROM_SOURCE" = 1 ] || warn "no release asset for $OS/$ARCH at $VERSION; building from source instead"
 	build_source
-elif ! download_release; then
-	warn "no release asset for $OS/$ARCH at $VERSION; building from source instead"
-	build_source
+	if [ "$CORE" = 1 ] && [ -z "$(find_core)" ]; then
+		fetch_core || warn "install herdr-core yourself: curl -fsSL https://releases.herdr.dev/core/install.sh | sh"
+	fi
 fi
 install_files "$TMP/x"
 
@@ -252,7 +305,7 @@ case ":$PATH:" in
 *":$BIN_DIR:"*) ;;
 *) warn "$BIN_DIR is not on PATH; add it, e.g.:  export PATH=\"$BIN_DIR:\$PATH\"" ;;
 esac
-has hc || warn "herdr-core (hc) is not on PATH; Shiori needs it to run terminals"
+[ -n "$(find_core)" ] || warn "no herdr-core found; Shiori needs it to run terminals"
 if [ "$OS" = linux ] && has ldconfig && ! ldconfig -p 2>/dev/null | grep -q 'libgtk-3'; then
 	warn "GTK 3 was not found; install it (libgtk-3-0 / gtk3) for the window to open"
 fi

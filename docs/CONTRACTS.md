@@ -11,7 +11,7 @@ Wire protocol: see docs/PROTOCOL.md. Public API:
 type Options struct {
     Socket    string // explicit socket path; else discovery (HC_SOCKET, XDG_RUNTIME_DIR/herdr-core/<session>.sock, /run/user/<uid>/..., ~/.local/state/herdr-core/<session>/)
     Session   string // HC_SESSION; "" = env or "default"
-    Binary    string // herdr-core/hc binary used to auto-start the core ("" = search PATH, ~/.local/bin, ...)
+    Binary    string // herdr-core/hc binary used to auto-start the core ("" = search ../libexec/shiori beside the executable, PATH, ~/.local/bin, ...)
     AutoStart bool   // when dialing fails, run "<binary> connect" as a byte pump (like herdr-app) instead
 }
 func Connect(ctx context.Context, o Options) (*Client, error) // hello{framed:true} + Check()

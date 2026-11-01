@@ -1,4 +1,11 @@
 name: release
+# Builds Shiori for Linux and macOS (amd64, arm64) with herdr-core bundled,
+# and attaches the archives to a GitHub release.
+#
+# Archive layout (install.sh unpacks it under a prefix such as ~/.local):
+#   bin/shiori
+#   libexec/shiori/herdr-core, libexec/shiori/hc   the bundled core
+#   icon.png LICENSE NOTICE README.md CORE_VERSION
 on:
   push:
     tags: ['v*']
@@ -9,12 +16,12 @@ on:
         required: true
 permissions:
   contents: write
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  CGO_ENABLED: '0'
 jobs:
-  release:
+  test:
     runs-on: ubuntu-24.04
-    env:
-      TAG: ${{ inputs.tag || github.ref_name }}
-      CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,24 +30,92 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./... && go test ./...
-      - name: Build
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: linux, arch: amd64, runner: ubuntu-24.04 }
+          - { os: linux, arch: arm64, runner: ubuntu-24.04-arm }
+          - { os: darwin, arch: amd64, runner: macos-15-intel }
+          - { os: darwin, arch: arm64, runner: macos-15 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build shiori
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
         run: |
-          mkdir -p dist
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
-            os=${target%/*} arch=${target#*/}
-            dir=dist/shiori_${os}_${arch}
-            mkdir -p "$dir"
-            GOOS=$os GOARCH=$arch go build -trimpath \
-              -ldflags "-s -w -X main.version=${TAG#v}" -o "$dir/shiori" ./cmd/shiori
-            cp assets/icon.png LICENSE NOTICE README.md "$dir/"
-            tar -C "$dir" -czf "$dir.tar.gz" .
+          mkdir -p stage/bin stage/libexec/shiori
+          go build -trimpath -ldflags "-s -w -X main.version=${TAG#v}" -o stage/bin/shiori ./cmd/shiori
+          cp assets/icon.png LICENSE NOTICE README.md stage/
+          stage/bin/shiori --version
+      - name: Bundle herdr-core
+        # The official installer, run natively so it picks this platform's
+        # build, into a throwaway HOME so it touches nothing else.
+        run: |
+          tmp="$RUNNER_TEMP/hc"
+          mkdir -p "$tmp/home" "$tmp/bin"
+          curl -fsSL https://releases.herdr.dev/core/install.sh |
+            HOME="$tmp/home" HC_INSTALL_DIR="$tmp/bin" SHELL=/bin/sh sh
+          found=0
+          for dir in "$tmp/bin" "$tmp/home/.local/bin"; do
+            for name in herdr-core hc; do
+              if [ -e "$dir/$name" ] && [ ! -e "stage/libexec/shiori/$name" ]; then
+                cp -L "$dir/$name" "stage/libexec/shiori/$name"
+                chmod 755 "stage/libexec/shiori/$name"
+                found=1
+              fi
+            done
           done
+          [ "$found" = 1 ] || { echo "herdr-core installer left no binaries"; ls -laR "$tmp"; exit 1; }
+          ls -la stage/libexec/shiori
+          for f in stage/libexec/shiori/*; do
+            v="$("$f" --version)"
+            echo "$f: $v"
+            case "$v" in "hc "*) ;; *) echo "$f is not herdr-core"; exit 1 ;; esac
+          done
+          "$(ls stage/libexec/shiori/* | head -1)" --version > stage/CORE_VERSION
+      - name: Package
+        run: |
+          name=shiori_${{ matrix.os }}_${{ matrix.arch }}
+          tar -C stage -czf "$name.tar.gz" .
+          tar -tzvf "$name.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shiori_${{ matrix.os }}_${{ matrix.arch }}
+          path: shiori_${{ matrix.os }}_${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
           cp install.sh dist/
-          (cd dist && sha256sum *.tar.gz install.sh > checksums.txt)
+          cd dist && sha256sum *.tar.gz install.sh > checksums.txt && cat checksums.txt
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          core="$(tar -xzOf dist/shiori_linux_amd64.tar.gz ./CORE_VERSION)"
           gh release view "$TAG" >/dev/null 2>&1 ||
-            gh release create "$TAG" --title "Shiori $TAG" --generate-notes
+            gh release create "$TAG" --verify-tag --title "Shiori $TAG" --generate-notes \
+              --notes "Bundles herdr-core ($core). Install: \`curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh\`"
           gh release upload "$TAG" dist/*.tar.gz dist/install.sh dist/checksums.txt --clobber
