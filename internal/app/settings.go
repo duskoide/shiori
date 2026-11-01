@@ -90,7 +90,7 @@ func settingsSectionOf(name string) (string, bool) {
 		return "keyboard", true
 	case "theme", "themes", "colors":
 		return "appearance", true
-	case "font", "fonts", "text", "terminal font":
+	case "font", "fonts", "text", "terminal font", "copy", "selection", "copy on select", "copy_on_select":
 		return "terminal", true
 	case "app font", "ui font", "ui_font":
 		return "appearance", true
@@ -126,6 +126,19 @@ func (a *App) setFont(family string) {
 		pt.term.SetFont(a.termFont())
 	}
 	a.saveSettingsSoon()
+}
+
+// setCopyOnSelect turns copying what the mouse selects in a terminal on or
+// off.
+func (a *App) setCopyOnSelect(on bool) {
+	a.cfg.CopyOnSelect = &on
+	if on {
+		a.cfg.CopyOnSelect = nil // the default
+	}
+	for _, pt := range a.terms {
+		pt.term.SetCopyOnSelect(a.cfg.copyOnSelect())
+	}
+	a.saveSettings()
 }
 
 // setUIFont sets the font of the window's own text; "" is the system's.
@@ -848,6 +861,24 @@ func (a *App) terminalPage(c *ui.Context, k *colors) {
 			}
 		})
 		fileNote(c, k, `settings.json  "font_size"`)
+	})
+
+	settingsGroup(c, k, "Selection", "Drag to select, double-click a word, triple-click a line; Alt drags a rectangle. A program that takes the mouse gets it unless Shift is held.", func() {
+		on := a.cfg.copiesOnSelect()
+		overSwitch := false
+		row := settingRow(c, k, "Copy on select", withKeys("What the mouse selects goes to the clipboard as the selection ends. Without it, copy with the keys or the right-click menu.", a.keysFor("terminal.copy")), func() {
+			v := on
+			sw := ui.Switch(c, &v).Label("Copy selected text")
+			overSwitch = sw.Hovered()
+			if v != on {
+				a.post(func() { a.setCopyOnSelect(v) })
+			}
+		})
+		row.Cursor(ui.CursorPointer).Label("Copy on select")
+		if row.Clicked() && !overSwitch {
+			a.post(func() { a.setCopyOnSelect(!on) })
+		}
+		fileNote(c, k, `settings.json  "copy_on_select"`)
 	})
 
 	settingsGroup(c, k, "Preview", "", func() {

@@ -194,6 +194,7 @@ selects the herdr-core session.
 | | `ui_font` | the font of the window's own text (lists, tabs, menus); none is the system's | Appearance |
 | | `font` | the terminals' font family, or a comma-separated list | Terminal |
 | | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
+| | `copy_on_select` | `false` stops what the mouse selects in a terminal from going to the clipboard | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |
 | | `changes` | `true` shows the changes panel | Layout |
 | | `update_check` | `false` stops the daily look for a new version | About |

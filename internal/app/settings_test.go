@@ -3,9 +3,11 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/duskoide/shiori/internal/keys"
@@ -343,5 +345,31 @@ func TestBindingRowsCoverEveryBinding(t *testing.T) {
 		if r.title == r.spec {
 			t.Errorf("%s has no title", r.spec)
 		}
+	}
+}
+
+func TestSettingsCopyOnSelect(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	if a.cfg.copyOnSelect() != terminal.CopyOnSelectClipboard {
+		t.Fatal("copying what the mouse selects is off by default")
+	}
+	a.openSettings("copy on select")
+	settle(tt)
+	copyKeys := a.keysFor("terminal.copy")
+	if copyKeys == "" || !slices.ContainsFunc(tt.Texts(), func(s string) bool { return strings.HasSuffix(s, "  "+copyKeys) }) {
+		t.Errorf("the row does not name the copy keys %q", copyKeys)
+	}
+	mustClick(t, tt, "Copy on select")
+	if a.cfg.copiesOnSelect() || a.cfg.copyOnSelect() != terminal.CopyOnSelectNone {
+		t.Fatal("still copies on select")
+	}
+	b, err := os.ReadFile(filepath.Join(a.home, "settings.json"))
+	if err != nil || !strings.Contains(string(b), `"copy_on_select": false`) {
+		t.Fatalf("settings.json %s, %v", b, err)
+	}
+	mustClick(t, tt, "Copy selected text") // the switch itself
+	if !a.cfg.copiesOnSelect() || a.cfg.CopyOnSelect != nil {
+		t.Fatalf("copy on select %v, stored %v", a.cfg.copiesOnSelect(), a.cfg.CopyOnSelect)
 	}
 }

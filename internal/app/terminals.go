@@ -49,7 +49,8 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 		Padding:   terminal.Padding{X: 10, Y: 6},
 		// herdr-app's cursor does not blink, and a blinking one redraws
 		// the window twice a second.
-		NoBlink: true,
+		NoBlink:      true,
+		CopyOnSelect: a.cfg.copyOnSelect(),
 		OnExit: func(int) {
 			a.post(func() { a.termEnded(pt) })
 		},
@@ -74,6 +75,18 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 	a.terms[addr] = pt
 	return pt
 }
+
+// copyOnSelect is where the terminals copy what the mouse selects: the
+// clipboard, unless the settings say not to.
+func (s Settings) copyOnSelect() terminal.CopyOnSelect {
+	if !s.copiesOnSelect() {
+		return terminal.CopyOnSelectNone
+	}
+	return terminal.CopyOnSelectClipboard
+}
+
+// copiesOnSelect reports whether what the mouse selects is copied.
+func (s Settings) copiesOnSelect() bool { return s.CopyOnSelect == nil || *s.CopyOnSelect }
 
 // zoomSteps changes the text size of the terminals by the steps of z, or
 // back to the default, and saves the settings once the steps are over.

@@ -75,6 +75,7 @@ func (a *App) reloadConfig(manual bool) {
 		a.applyTheme()
 		for _, pt := range a.terms {
 			pt.term.SetFont(a.termFont())
+			pt.term.SetCopyOnSelect(a.cfg.copyOnSelect())
 		}
 	}
 	if settings || !bytes.Equal(oldKeys, a.keysRaw) || manual {

@@ -154,7 +154,10 @@ type Settings struct {
 	// "" is the system's.
 	UIFont   string  `json:"ui_font,omitempty"`
 	FontSize float32 `json:"font_size,omitempty"`
-	Sidebar  *bool   `json:"sidebar,omitempty"`
+	// CopyOnSelect false stops a terminal's selection made with the mouse
+	// from going to the clipboard as it ends.
+	CopyOnSelect *bool `json:"copy_on_select,omitempty"`
+	Sidebar      *bool `json:"sidebar,omitempty"`
 	// Changes shows the changes panel.
 	Changes *bool `json:"changes,omitempty"`
 	// UpdateCheck false stops the daily look for a new version.
