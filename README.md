@@ -239,6 +239,10 @@ CGO_ENABLED=0 go test -c -o /tmp/shiori-app.test ./internal/app
 SHIORI_IT=1 SHIORI_SHOTS=/tmp/shots /tmp/shiori-app.test -test.run TestIntegration -test.v
 ```
 
+`SHIORI_DEVTOOLS=1` turns on MyGo's element inspector (F12, or
+Ctrl+Shift+C to pick an element); without it those keys are the
+terminals'.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

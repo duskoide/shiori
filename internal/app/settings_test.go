@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
@@ -402,5 +403,18 @@ func TestCopiedToast(t *testing.T) {
 	settle(tt)
 	if tt.HasText("Copied") || !tt.HasText("Settings reloaded") {
 		t.Fatalf("texts %q", tt.Texts())
+	}
+}
+
+// The inspector's keys (Ctrl+Shift+C picks an element) are a terminal's
+// unless someone asks for it.
+func TestDevToolsOnlyWhenAsked(t *testing.T) {
+	t.Setenv("SHIORI_DEVTOOLS", "")
+	if devTools() != mygo.DevToolsDisabled {
+		t.Fatal("the inspector is on by default")
+	}
+	t.Setenv("SHIORI_DEVTOOLS", "1")
+	if devTools() != mygo.DevToolsEnabled {
+		t.Fatal("SHIORI_DEVTOOLS=1 does not turn it on")
 	}
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/egoist/mygo"
@@ -40,6 +41,7 @@ func Run(home, session string) error {
 			TitleBarStyle:   mygo.TitleBarHidden,
 			BackgroundColor: hexOf(a.k.canvas),
 			Content:         ui.View(a.view),
+			Page:            mygo.PageOptions{DevTools: devTools()},
 		})
 		_ = a.win.SetIcon(assets.Icon) // packages carry it too; this covers go run and plain builds
 		a.win.OnClosed(func() {
@@ -54,6 +56,16 @@ func Run(home, session string) error {
 		}
 	})
 	return mygo.App.Run()
+}
+
+// devTools is whether MyGo's element inspector is on: only with
+// SHIORI_DEVTOOLS=1. MyGo turns it on in any build not made with mygo
+// build, and its keys (Ctrl+Shift+C, Ctrl+Shift+I, F12) are a terminal's.
+func devTools() mygo.DevTools {
+	if os.Getenv("SHIORI_DEVTOOLS") == "1" {
+		return mygo.DevToolsEnabled
+	}
+	return mygo.DevToolsDisabled
 }
 
 // Commands returns every command with its arguments, for JSON: the open
