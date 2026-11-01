@@ -107,7 +107,7 @@ type Terminal struct {
 
 	// Extras beyond the minimal record.
 	Pid        *int            `json:"pid"`
-	Signal     *string         `json:"signal"`
+	Signal     *int            `json:"signal"`
 	FinishedMs *int64          `json:"finished_ms"`
 	Reported   bool            `json:"reported"`
 	Records    json.RawMessage `json:"records,omitempty"`
@@ -197,9 +197,9 @@ func (d Display) MarshalJSON() ([]byte, error) {
 
 // CloseReason is why a terminal stream ended.
 type CloseReason struct {
-	Reason   string  `json:"reason"`
-	ExitCode *int    `json:"exit_code"`
-	Signal   *string `json:"signal"`
+	Reason   string `json:"reason"`
+	ExitCode *int   `json:"exit_code"`
+	Signal   *int   `json:"signal"`
 }
 
 func (r CloseReason) String() string {
@@ -208,7 +208,7 @@ func (r CloseReason) String() string {
 		s += fmt.Sprintf(" (exit %d)", *r.ExitCode)
 	}
 	if r.Signal != nil {
-		s += " (signal " + *r.Signal + ")"
+		s += fmt.Sprintf(" (signal %d)", *r.Signal)
 	}
 	return s
 }

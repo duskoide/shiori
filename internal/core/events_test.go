@@ -78,7 +78,7 @@ func TestApplyEvents(t *testing.T) {
 					t.Fatalf("%+v", ts)
 				}
 			}},
-		{name: "lost", typ: "lost", term: "t1", data: `{"reason":"signaled","exit_code":null,"signal":"SIGKILL","finished_ms":null}`, wantTerms: true,
+		{name: "lost", typ: "lost", term: "t1", data: `{"reason":"signaled","exit_code":null,"signal":9,"finished_ms":null}`, wantTerms: true,
 			check: func(t *testing.T, ts []Terminal) {
 				x := ts[0]
 				if x.State != "live" || x.Reason == nil || *x.Reason != "signaled" || x.Signal == nil || x.Pid != nil || x.Foreground != nil {
