@@ -64,7 +64,7 @@ func TestSettingsFont(t *testing.T) {
 	if a.cfg.Font != "Liberation Mono, monospace" {
 		t.Fatalf("font %q", a.cfg.Font)
 	}
-	mustClick(t, tt, "Default")
+	mustClick(t, tt, "Default font family")
 	if a.cfg.Font != "" || a.set.font != "" {
 		t.Fatalf("font %q, field %q", a.cfg.Font, a.set.font)
 	}
@@ -73,6 +73,44 @@ func TestSettingsFont(t *testing.T) {
 	settle(tt)
 	if a.set.font != "Fira Code" {
 		t.Fatalf("field %q", a.set.font)
+	}
+}
+
+// The app font is the window's own text's, kept as ui_font; empty, the
+// system's.
+func TestSettingsAppFont(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	a.openSettings("app font")
+	settle(tt)
+	if a.set.section != "appearance" || !tt.HasText("App font") {
+		t.Fatal(a.set.section, tt.Texts())
+	}
+	mustClick(t, tt, "App font family")
+	tt.Type("DejaVu Sans")
+	mustClick(t, tt, "Apply app font family")
+	settle(tt)
+	shot(t, tt, "app-font")
+	if a.cfg.UIFont != "DejaVu Sans" || a.cfg.Font != "" {
+		t.Fatalf("ui font %q, font %q", a.cfg.UIFont, a.cfg.Font)
+	}
+	if got := a.snapshot().settings["ui_font"]; got != "DejaVu Sans" {
+		t.Fatalf("settings.changed has %v", got)
+	}
+	a.flushSettings()
+	b, _ := os.ReadFile(filepath.Join(a.home, "settings.json"))
+	if !strings.Contains(string(b), `"ui_font": "DejaVu Sans"`) {
+		t.Fatalf("settings.json %s", b)
+	}
+	mustClick(t, tt, "Default app font family")
+	if a.cfg.UIFont != "" || a.set.uiFont != "" {
+		t.Fatalf("ui font %q, field %q", a.cfg.UIFont, a.set.uiFont)
+	}
+	// A font set in the file shows in the field.
+	a.cfg.UIFont = "Noto Sans"
+	settle(tt)
+	if a.set.uiFont != "Noto Sans" {
+		t.Fatalf("field %q", a.set.uiFont)
 	}
 }
 

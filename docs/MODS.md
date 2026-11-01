@@ -190,7 +190,7 @@ only worked out while someone is subscribed.
 | `focus.changed` | `{space, tab, pane, terminal, cwd, machine}` |
 | `window.focus` | `{focused}`: the window got or lost the keyboard focus |
 | `agent.status` | `{pane, terminal, app, status, previous}`; status is `working`, `blocked`, `done` or `idle`, as `shiori ls` says it |
-| `settings.changed` | `{theme, font, font_size, sidebar}` |
+| `settings.changed` | `{theme, font, font_size, ui_font, sidebar, changes}` |
 | `keys.changed` | `{}` |
 | `connection` | `{connected, error}`: herdr-core came or went |
 | `machine.changed` | `{name, state, why, previous, connected}`: another machine was added or changed state (`connected`, `needs_login`, `needs_update`, …); `state` is `removed` when it left |

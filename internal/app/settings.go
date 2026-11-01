@@ -38,8 +38,10 @@ var settingsSections = []struct{ id, title, icon string }{
 // settingsState is what the panel keeps while it is open.
 type settingsState struct {
 	section      string
-	font         string          // the font field, applied on Enter or Apply
-	fontSeen     string          // the font settings.json had as the field last took it
+	font         string // the font field, applied on Enter or Apply
+	fontSeen     string // the font settings.json had as the field last took it
+	uiFont       string // the app font field, as font
+	uiFontSeen   string
 	query        string          // the keyboard page's filter
 	confirmReset bool            // Reset all asks before it removes keys.json
 	logs         map[string]bool // the mods whose logs show
@@ -61,7 +63,13 @@ type recording struct {
 func (a *App) openSettings(section string) {
 	a.settings = true
 	id, _ := settingsSectionOf(section)
-	a.set = settingsState{section: id, font: a.cfg.Font, fontSeen: a.cfg.Font, addSection: "global"}
+	a.set = a.freshSettingsState(id)
+}
+
+// freshSettingsState is the panel's state as it opens at a section.
+func (a *App) freshSettingsState(section string) settingsState {
+	return settingsState{section: section, font: a.cfg.Font, fontSeen: a.cfg.Font,
+		uiFont: a.cfg.UIFont, uiFontSeen: a.cfg.UIFont, addSection: "global"}
 }
 
 // settingsSectionOf is the section a name means: its id, or a word for
@@ -82,8 +90,10 @@ func settingsSectionOf(name string) (string, bool) {
 		return "keyboard", true
 	case "theme", "themes", "colors":
 		return "appearance", true
-	case "font", "fonts", "text":
+	case "font", "fonts", "text", "terminal font":
 		return "terminal", true
+	case "app font", "ui font", "ui_font":
+		return "appearance", true
 	case "sidebar":
 		return "layout", true
 	case "extensions", "plugins", "mod":
@@ -115,6 +125,13 @@ func (a *App) setFont(family string) {
 	for _, pt := range a.terms {
 		pt.term.SetFont(a.termFont())
 	}
+	a.saveSettingsSoon()
+}
+
+// setUIFont sets the font of the window's own text; "" is the system's.
+func (a *App) setUIFont(family string) {
+	a.cfg.UIFont = strings.TrimSpace(family)
+	a.set.uiFont, a.set.uiFontSeen = a.cfg.UIFont, a.cfg.UIFont
 	a.saveSettingsSoon()
 }
 
@@ -473,7 +490,7 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 		return
 	}
 	if a.set.section == "" {
-		a.set = settingsState{section: settingsSections[0].id, font: a.cfg.Font, fontSeen: a.cfg.Font, addSection: "global"}
+		a.set = a.freshSettingsState(settingsSections[0].id)
 	}
 	a.applyRecording()
 	w, h := c.Size()
@@ -614,6 +631,14 @@ func (a *App) appearancePage(c *ui.Context, k *colors) {
 		})
 		fileNote(c, k, `settings.json  "theme"`)
 	})
+	settingsGroup(c, k, "App font", "The font of the window's own text: lists, tabs, menus and this panel. The terminals' font is on the Terminal page.", func() {
+		a.fontField(c, k, fontField{
+			value: &a.set.uiFont, seen: &a.set.uiFontSeen, current: a.cfg.UIFont,
+			label: "App font family", chip: "App font ", fallback: "System font", generic: "sans-serif",
+			families: proportionalFonts(), set: a.setUIFont,
+		})
+		fileNote(c, k, `settings.json  "ui_font"`)
+	})
 }
 
 // themeCard shows a theme in small: its chrome, its background, a prompt
@@ -689,63 +714,118 @@ func monospaceFonts() []string {
 	return monoFonts
 }
 
+// fontField is a font family's field: what it edits, and how.
+type fontField struct {
+	value, seen *string // the field, and the setting it last took
+	current     string  // the setting
+	label, chip string  // the field's label, and its chips' before the name
+	fallback    string  // the default, shown when the field is empty
+	generic     string  // the generic family chips fall back to
+	families    []string
+	set         func(string)
+}
+
+// fontField is a family typed or picked: Apply, Default, and chips of the
+// installed families that match what is typed.
+func (a *App) fontField(c *ui.Context, k *colors, f fontField) {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		// A font set elsewhere (the file, a reload) shows, unless it is
+		// being typed over.
+		if f.current != *f.seen {
+			if strings.TrimSpace(*f.value) == *f.seen {
+				*f.value = f.current
+			}
+			*f.seen = f.current
+		}
+		in := ui.TextInput(c, f.value).Grow(1).Placeholder(f.fallback).Label(f.label)
+		if in.Submitted() {
+			v := *f.value
+			a.post(func() { f.set(v) })
+		}
+		changed := strings.TrimSpace(*f.value) != f.current
+		if ui.PrimaryButton(c, "Apply").Label("Apply " + strings.ToLower(f.label)).Disabled(!changed).Clicked() {
+			v := *f.value
+			a.post(func() { f.set(v) })
+		}
+		if ui.Button(c, "Default").Label("Default " + strings.ToLower(f.label)).Disabled(f.current == "" && *f.value == "").Tooltip(f.fallback).Clicked() {
+			a.post(func() { f.set("") })
+		}
+	})
+	// Installed families, those matching what is typed.
+	typed := *f.value
+	if i := strings.LastIndexByte(typed, ','); i >= 0 {
+		typed = typed[i+1:]
+	}
+	q := strings.ToLower(strings.TrimSpace(typed))
+	var found []string
+	for _, name := range f.families {
+		if q == "" || strings.Contains(strings.ToLower(name), q) {
+			found = append(found, name)
+		}
+		if len(found) == 12 {
+			break
+		}
+	}
+	if len(found) == 0 {
+		return
+	}
+	ui.Row(c).Gap(6).Wrap().Children(func() {
+		for _, name := range found {
+			chip := ui.Row(c.Key(f.chip+name)).Padding(4, 9).Radius(7).Border(1, k.border).Cursor(ui.CursorPointer).
+				Role(ui.RoleButton).Label(f.chip + name)
+			if name == f.current {
+				chip.Background(k.selected).Border(1, k.accent)
+			} else if chip.Hovered() {
+				chip.Background(k.hover)
+			}
+			chip.Children(func() { ui.Text(c, name).FontSize(12.5).Font(name + ", " + f.generic).TextColor(k.foreground) })
+			if chip.Clicked() {
+				a.post(func() { f.set(name) })
+			}
+		}
+	})
+}
+
+var (
+	propOnce  sync.Once
+	propFonts []string
+)
+
+// commonUIFonts are families made for interfaces, offered first when
+// installed.
+var commonUIFonts = []string{"Inter", "Geist", "SF Pro Text", "SF Pro", "Segoe UI", "Noto Sans", "Roboto", "Ubuntu", "Cantarell", "IBM Plex Sans", "Open Sans", "Source Sans 3", "DejaVu Sans", "Helvetica Neue"}
+
+// proportionalFonts lists the system's families for an interface's text:
+// the common ones first, then the rest, once.
+func proportionalFonts() []string {
+	propOnce.Do(func() {
+		var rest []string
+		for _, f := range ui.FontFamilies() {
+			low := strings.ToLower(f.Name)
+			if f.Monospaced || strings.Contains(low, "emoji") || strings.Contains(low, "symbol") {
+				continue
+			}
+			if slices.Contains(commonUIFonts, f.Name) {
+				propFonts = append(propFonts, f.Name)
+			} else {
+				rest = append(rest, f.Name)
+			}
+		}
+		slices.SortFunc(propFonts, func(x, y string) int {
+			return slices.Index(commonUIFonts, x) - slices.Index(commonUIFonts, y)
+		})
+		propFonts = append(propFonts, rest...)
+	})
+	return propFonts
+}
+
 func (a *App) terminalPage(c *ui.Context, k *colors) {
 	settingsGroup(c, k, "Font", "A family, or a list of families separated by commas: the first one installed draws, the others fill in what it lacks.", func() {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			// A font set elsewhere (the file, a reload) shows, unless it is
-			// being typed over.
-			if a.cfg.Font != a.set.fontSeen {
-				if strings.TrimSpace(a.set.font) == a.set.fontSeen {
-					a.set.font = a.cfg.Font
-				}
-				a.set.fontSeen = a.cfg.Font
-			}
-			in := ui.TextInput(c, &a.set.font).Grow(1).Placeholder(defaultFontFamily).Label("Font family")
-			if in.Submitted() {
-				font := a.set.font
-				a.post(func() { a.setFont(font) })
-			}
-			changed := strings.TrimSpace(a.set.font) != a.cfg.Font
-			if ui.PrimaryButton(c, "Apply").Disabled(!changed).Clicked() {
-				font := a.set.font
-				a.post(func() { a.setFont(font) })
-			}
-			if ui.Button(c, "Default").Disabled(a.cfg.Font == "" && a.set.font == "").Tooltip(defaultFontFamily).Clicked() {
-				a.post(func() { a.setFont("") })
-			}
+		a.fontField(c, k, fontField{
+			value: &a.set.font, seen: &a.set.fontSeen, current: a.cfg.Font,
+			label: "Font family", chip: "Font ", fallback: defaultFontFamily, generic: "monospace",
+			families: monospaceFonts(), set: a.setFont,
 		})
-		// Installed monospaced families, those matching what is typed.
-		typed := a.set.font
-		if i := strings.LastIndexByte(typed, ','); i >= 0 {
-			typed = typed[i+1:]
-		}
-		q := strings.ToLower(strings.TrimSpace(typed))
-		var found []string
-		for _, f := range monospaceFonts() {
-			if q == "" || strings.Contains(strings.ToLower(f), q) {
-				found = append(found, f)
-			}
-			if len(found) == 12 {
-				break
-			}
-		}
-		if len(found) > 0 {
-			ui.Row(c).Gap(6).Wrap().Children(func() {
-				for _, f := range found {
-					chip := ui.Row(c.Key("font:"+f)).Padding(4, 9).Radius(7).Border(1, k.border).Cursor(ui.CursorPointer).
-						Role(ui.RoleButton).Label("Font " + f)
-					if f == a.cfg.Font {
-						chip.Background(k.selected).Border(1, k.accent)
-					} else if chip.Hovered() {
-						chip.Background(k.hover)
-					}
-					chip.Children(func() { ui.Text(c, f).FontSize(12.5).Font(f + ", monospace").TextColor(k.foreground) })
-					if chip.Clicked() {
-						a.post(func() { a.setFont(f) })
-					}
-				}
-			})
-		}
 		fileNote(c, k, `settings.json  "font"`)
 	})
 

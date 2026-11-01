@@ -25,7 +25,7 @@ herdr-app can show the same spaces side by side.
   closing (see [Recovery](#recovery))
 - Command palette, rename and confirm dialogs, theme presets
 - A settings panel (`Ctrl+,`) for everything in `settings.json` and
-  `keys.json`: theme, terminal font and size, sidebar, every key
+  `keys.json`: theme, app font, terminal font and size, sidebar, every key
   binding, recorded by pressing the keys, mods and machines
 - Other machines: the spaces and terminals of machines herdr-core reaches
   over SSH, beside this one's, each under its name in the sidebar; added
@@ -192,6 +192,7 @@ selects the herdr-core session.
 | File | Key | What | Settings panel |
 | --- | --- | --- | --- |
 | `settings.json` | `theme` | `graphite`, `ink`, `moss`, `paper` or `atom-one-dark` | Appearance |
+| | `ui_font` | the font of the window's own text (lists, tabs, menus); none is the system's | Appearance |
 | | `font` | the terminals' font family, or a comma-separated list | Terminal |
 | | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |

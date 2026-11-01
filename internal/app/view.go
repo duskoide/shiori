@@ -16,7 +16,9 @@ func (a *App) view(c *ui.Context) {
 	}
 	a.runPosted()
 	k := a.k
-	c.SetTheme(k.uiTheme(c.Theme()))
+	th := k.uiTheme(c.Theme())
+	th.Font = a.cfg.UIFont // "" is the system's
+	c.SetTheme(th)
 	c.Root().Background(k.canvas)
 	a.dragging = false
 	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {

@@ -148,8 +148,11 @@ type App struct {
 
 // Settings are the person's preferences, settings.json in the app's home.
 type Settings struct {
-	Theme    string  `json:"theme,omitempty"`
-	Font     string  `json:"font,omitempty"`
+	Theme string `json:"theme,omitempty"`
+	Font  string `json:"font,omitempty"`
+	// UIFont is the font of the window's own text: menus, lists, labels.
+	// "" is the system's.
+	UIFont   string  `json:"ui_font,omitempty"`
 	FontSize float32 `json:"font_size,omitempty"`
 	Sidebar  *bool   `json:"sidebar,omitempty"`
 	// Changes shows the changes panel.
