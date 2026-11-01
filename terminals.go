@@ -17,6 +17,7 @@ type paneTerm struct {
 	term    *terminal.Terminal
 	stream  *core.Stream
 	closing bool // its pane closed here: its end is no news
+	since   time.Time
 	focus   bool // what the core was last told about the viewer's focus
 }
 
@@ -39,7 +40,7 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 	k := a.k
 	d := a.display()
 	st := a.client.Stream(addr, &d)
-	pt := &paneTerm{addr: addr, stream: st}
+	pt := &paneTerm{addr: addr, stream: st, since: time.Now()}
 	t, err := terminal.New(terminal.Options{
 		Conn:      st,
 		Font:      a.termFont(),
@@ -120,7 +121,16 @@ func (a *App) termEnded(pt *paneTerm) {
 		a.closeTerminalPanes(pt.addr)
 		return
 	}
-	a.retry[pt.addr] = time.Now().Add(time.Second)
+	// Attach again, waiting longer while attaching keeps failing.
+	if time.Since(pt.since) > attachSettled {
+		delete(a.sy.attachFails, pt.addr)
+	}
+	if a.sy.attachFails == nil {
+		a.sy.attachFails = map[string]int{}
+	}
+	n := a.sy.attachFails[pt.addr]
+	a.sy.attachFails[pt.addr] = n + 1
+	a.retry[pt.addr] = time.Now().Add(attachBackoff[min(n, len(attachBackoff)-1)])
 }
 
 // closeTerminalPanes closes the panes that show a terminal that ended.
@@ -329,3 +339,10 @@ func cutColon(s string) (string, string, bool) {
 	}
 	return s, "", false
 }
+
+// attachBackoff is how long to wait before attaching to a terminal again
+// after the stream broke, by the number of breaks in a row.
+var attachBackoff = []time.Duration{time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second}
+
+// attachSettled is how long a stream must last to reset the backoff.
+const attachSettled = 10 * time.Second

@@ -22,6 +22,7 @@ func (a *App) start() {
 // shutdown detaches every terminal and closes the connection; the
 // terminals keep running in the core.
 func (a *App) shutdown() {
+	a.flushSettings()
 	a.drain()
 	if a.stop != nil {
 		a.stop()
@@ -538,6 +539,7 @@ type syncState struct {
 	orphanSince map[string]time.Time // live terminals of ours without a pane, since
 	adopting    map[string]bool      // adoptions being confirmed with the core
 	checking    map[string]time.Time // pane terminals the core was last asked about
+	attachFails map[string]int       // streams that broke in a row, by terminal
 }
 
 const (

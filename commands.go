@@ -1106,7 +1106,7 @@ func (a *App) zoomBy(steps int) {
 	for _, pt := range a.terms {
 		pt.term.SetFont(a.termFont())
 	}
-	a.saveSettings()
+	a.saveSettingsSoon()
 }
 
 // statusWord names an agent status for people.
