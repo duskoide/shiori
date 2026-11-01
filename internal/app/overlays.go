@@ -47,14 +47,14 @@ func (a *App) paletteItems() []paletteItem {
 			}
 		}
 	}
-	for _, c := range commands {
-		if c.hidden || !match(c.Title+" "+c.Name) {
+	for _, c := range a.allCommands() {
+		if c.hidden || !match(c.Title+" "+c.Name+" "+c.Mod) {
 			continue
 		}
 		name := c.Name
 		cmds = append(cmds, paletteItem{title: c.Title, detail: c.Name, keys: a.keysFor(name), run: func() {
 			cmd, value, _ := cutColon(name)
-			if findCommand(name) != nil {
+			if a.findCommand(name) != nil {
 				cmd, value = name, ""
 			}
 			a.doAction(cmd, value)

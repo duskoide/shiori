@@ -97,6 +97,11 @@ type App struct {
 	terms map[string]*paneTerm // by terminal address
 	retry map[string]time.Time // terminals not to attach again before then
 
+	// Commands besides the app's own (the mods'), and the replies still
+	// waiting for an answer that can be cancelled.
+	extra   []*command
+	waiting map[*deferred]bool
+
 	// Overlays.
 	palette  paletteState
 	prompt   *promptState
@@ -158,6 +163,7 @@ func newApp(home, session string) *App {
 		localSeen: map[string]bool{},
 		terms:     map[string]*paneTerm{},
 		retry:     map[string]time.Time{},
+		waiting:   map[*deferred]bool{},
 		sidebarW:  sidebarWidth,
 	}
 	a.loadSettings()
@@ -369,12 +375,28 @@ func (a *App) runGuarded(fn func()) {
 // toast is a short message over the window.
 type toast struct {
 	text  string
+	level level
 	until time.Time
 }
 
+// level is how a toast looks: news, or something that went wrong.
+type level int
+
+const (
+	levelInfo level = iota
+	levelError
+)
+
 // notify shows a message for a few seconds.
-func (a *App) notify(text string) {
-	a.toasts = append(a.toasts, toast{text: text, until: time.Now().Add(5 * time.Second)})
+func (a *App) notify(text string) { a.notifyLevel(text, levelInfo) }
+
+// notifyLevel shows a message for a few seconds, an error for longer.
+func (a *App) notifyLevel(text string, lv level) {
+	d := 5 * time.Second
+	if lv == levelError {
+		d = 8 * time.Second
+	}
+	a.toasts = append(a.toasts, toast{text: text, level: lv, until: time.Now().Add(d)})
 	if len(a.toasts) > 4 {
 		a.toasts = a.toasts[len(a.toasts)-4:]
 	}

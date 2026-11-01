@@ -56,8 +56,14 @@ func Run(home, session string) error {
 	return mygo.App.Run()
 }
 
-// Commands returns every command with its arguments, for JSON.
-func Commands() any { return commands }
+// Commands returns every command with its arguments, for JSON: the open
+// window's, with its mods' commands, else the app's own.
+func Commands(home string) any {
+	if b, err := ask(home, request{Commands: true}); err == nil {
+		return b
+	}
+	return commands
+}
 
 // Ls asks the window running from home for its spaces, tabs and panes.
 func Ls(home string) (json.RawMessage, error) { return ask(home, request{Ls: true}) }

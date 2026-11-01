@@ -299,7 +299,7 @@ func (a *App) shortcutAllowed(cmd string) bool {
 // shortcuts runs the "global" keys of keys.json.
 func (a *App) shortcuts(c *ui.Context) {
 	for chord, act := range a.keymap.Sections["global"] {
-		if act.Command == "" || !a.shortcutAllowed(act.Command) || findCommand(act.Command) == nil && findCommand(act.Command+":"+act.Arg) == nil {
+		if act.Command == "" || !a.shortcutAllowed(act.Command) || a.findCommand(act.Command) == nil && a.findCommand(act.Command+":"+act.Arg) == nil {
 			continue
 		}
 		mods, key, ok := uiChord(chord)
@@ -307,7 +307,7 @@ func (a *App) shortcuts(c *ui.Context) {
 			continue
 		}
 		cmd, value := act.Command, act.Arg
-		if findCommand(cmd+":"+value) != nil {
+		if a.findCommand(cmd+":"+value) != nil {
 			cmd, value = cmd+":"+value, ""
 		}
 		if cmd == "app.palette" && a.palette.open {

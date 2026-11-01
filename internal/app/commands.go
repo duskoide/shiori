@@ -28,8 +28,11 @@ type command struct {
 	Title  string   `json:"title"`
 	Args   []argDef `json:"args"`
 	About  string   `json:"about"`
+	Mod    string   `json:"mod,omitempty"` // the mod that adds it; "" for the app's own
 	hidden bool     // not in the palette
-	run    func(a *App, args args) (any, error)
+	// run runs the command on the main thread. A command that answers
+	// later returns a *deferred.
+	run func(a *App, args args) (any, error)
 }
 
 type argDef struct {
@@ -134,8 +137,14 @@ var unsupported = []string{
 	"app.hide", "app.hide_others", "app.show_all", "window.minimize", "window.maximize",
 }
 
-func findCommand(name string) *command {
+// findCommand is the command of a name: the app's own, then the mods'.
+func (a *App) findCommand(name string) *command {
 	for _, c := range commands {
+		if c.Name == name {
+			return c
+		}
+	}
+	for _, c := range a.extra {
 		if c.Name == name {
 			return c
 		}
@@ -143,9 +152,14 @@ func findCommand(name string) *command {
 	return nil
 }
 
+// allCommands is every command, the app's own first, in the palette's order.
+func (a *App) allCommands() []*command {
+	return append(slices.Clip(commands), a.extra...)
+}
+
 // do runs a command by name with its arguments, on the main thread.
 func (a *App) do(name string, v args) (any, error) {
-	c := findCommand(name)
+	c := a.findCommand(name)
 	if c == nil {
 		if slices.Contains(unsupported, name) {
 			return nil, fmt.Errorf("%s is not supported by this app", name)
@@ -186,7 +200,7 @@ func (a *App) do(name string, v args) (any, error) {
 func (a *App) doAction(command, value string) {
 	v := args{}
 	if value != "" {
-		c := findCommand(command)
+		c := a.findCommand(command)
 		if c == nil {
 			a.notify("unknown command " + command)
 			return
@@ -197,9 +211,12 @@ func (a *App) doAction(command, value string) {
 			v[c.Args[0].Name] = value
 		}
 	}
-	if _, err := a.do(command, v); err != nil {
-		a.notify(err.Error())
+	r, err := a.do(command, v)
+	if err != nil {
+		a.notifyLevel(err.Error(), levelError)
+		return
 	}
+	a.reportLater(command, r)
 }
 
 func hasArg(c *command, name string) bool {

@@ -51,7 +51,7 @@ func run(argv []string, out io.Writer) error {
 		fmt.Fprintln(out, "shiori", version)
 		return nil
 	case "commands":
-		return printJSON(out, app.Commands())
+		return printJSON(out, app.Commands(home))
 	case "ls":
 		b, err := app.Ls(home)
 		return printReply(out, b, err)

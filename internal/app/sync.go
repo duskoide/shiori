@@ -23,6 +23,7 @@ func (a *App) start() {
 // shutdown detaches every terminal and closes the connection; the
 // terminals keep running in the core.
 func (a *App) shutdown() {
+	a.cancelWaiting()
 	a.flushSettings()
 	a.drain()
 	if a.stop != nil {
