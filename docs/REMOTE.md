@@ -1,6 +1,6 @@
 # Remote machines — plan
 
-Status: phases 0 to 3 done (below). Branch `remote-machines`
+Status: phases 0 to 4 done (below). Branch `remote-machines`
 (from `main` at `0a8c145`). Reference: herdr-app, public at
 https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
 
@@ -274,10 +274,17 @@ machine leaves the list, its spaces go from the window.
    `terminalsKnown` (connected, document read). Layout edits of a machine
    not connected stay in the window and are saved when it is back (as
    herdr-app keeps a machine's saves waiting); only terminals refuse.
-4. **Machines in the window.** Sidebar groups, status bar, Settings →
-   Machines (with Add from `~/.ssh/config`, the add-in-a-tab path, Rename,
-   Remove, Update, Log in), `machine.*` commands, `ls`/`status` fields,
-   the `machine.changed` event.
+4. **Machines in the window.** Done (`machines.go`, `machinespage.go`):
+   the sidebar heads each machine's spaces (state dot, `+` for a space
+   there, greyed spaces while it is not connected); the status bar counts
+   the machines and opens Settings → Machines, which lists them (state,
+   why, version) with Log in, Update (older core), Rename and Remove
+   (confirmed inline), and adds one by target or from `~/.ssh/config`,
+   going on in a tab when `core.AddNeedsPerson`. Commands
+   `machine.list/add/rename/remove/update/login` and `app.machines`;
+   `ls` gives spaces' `machine` and `machines`, `status` each machine's
+   layout state; the `machine.changed` event (and `machine` in
+   `space.created`).
 5. **Remote-aware features.** Changes panel through `hc exec`;
    `SHIORI_MACHINE`; machine fields in events; paths shortened only
    locally; "Open in editor" local only.

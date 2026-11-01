@@ -76,6 +76,8 @@ type App struct {
 	doc       *layout.Document
 	docs      map[string]*docSync
 	machines  []core.Machine
+	mach      machinesState
+	hc        *core.HC // the hc command, for machines (machines.go)
 	dragging  bool
 	pending   map[string]time.Time // terminals started here, not yet in a pane
 	spawning  map[string]int       // tabs whose terminals are starting here

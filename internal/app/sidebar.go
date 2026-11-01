@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,11 +59,96 @@ func (a *App) spacesList(c *ui.Context, k *colors) {
 	if a.doc == nil {
 		return
 	}
+	groups := a.spaceGroups()
 	ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, 6, 6, 6).Gap(1).Children(func() {
-		for i, s := range a.doc.Spaces {
-			a.spaceRow(c, k, i, s)
+		for _, m := range groups {
+			if len(groups) > 1 {
+				a.machineHeader(c, k, m)
+			}
+			for i, s := range a.doc.Spaces {
+				if s.Machine == m {
+					a.spaceRow(c, k, i, s)
+				}
+			}
 		}
 	})
+}
+
+// spaceGroups are the machines the spaces list shows, in its order: this
+// one, then the others by name, those without spaces too.
+func (a *App) spaceGroups() []string {
+	groups := []string{""}
+	for _, m := range a.machines {
+		groups = append(groups, m.Name)
+	}
+	for _, m := range a.doc.Machines() {
+		if !slices.Contains(groups, m) {
+			groups = append(groups, m)
+		}
+	}
+	slices.Sort(groups[1:])
+	return groups
+}
+
+// machineHeader heads a machine's spaces in the list: its name and state,
+// and a button for a new space there.
+func (a *App) machineHeader(c *ui.Context, k *colors, name string) {
+	m, listed := a.machine(name)
+	title, icon, tip := name, "server", ""
+	dot := k.done
+	switch {
+	case name == "":
+		title, icon = "This computer", "monitor"
+		if !a.connected {
+			dot = k.blocked
+		}
+	case !listed:
+		dot, tip = k.dim, "Not listed by herdr-core"
+	default:
+		word, _ := machineWord(m)
+		dot, tip = machineDot(k, m), word
+		if m.Why != "" && !m.Usable() {
+			tip += ": " + m.Why
+		}
+	}
+	row := ui.Row(c.Key("machine:"+name)).Height(26).Padding(6, 4, 0, 8).Gap(6).AlignItems(ui.Center).Shrink(0).Label("Machine " + title)
+	if tip != "" {
+		row.Tooltip(tip)
+	}
+	row.ContextMenu(func(m *ui.Menu) {
+		if m.Item("New space").Disabled(a.machineReady(name) != nil).Chosen() {
+			a.post(func() { a.newSpaceOn(name) })
+		}
+		if m.Item("Machines…").Chosen() {
+			a.post(func() { a.openSettings("machines") })
+		}
+	})
+	row.Children(func() {
+		ui.Box(c).Size(6, 6).Radius(3).Background(dot).Shrink(0)
+		ui.Icon(c, glyph(icon)).Size(12, 12).TextColor(k.dim).Shrink(0)
+		ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(k.muted).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Spacer(c)
+		plus := iconButton(c, k, "plus", "New space on "+title, 20, 12)
+		if err := a.machineReady(name); err != nil {
+			plus.Opacity(0.4).Tooltip(err.Error())
+		} else {
+			plus.Tooltip("New space on " + title)
+			if plus.Clicked() {
+				a.post(func() { a.newSpaceOn(name) })
+			}
+		}
+	})
+}
+
+// newSpaceOn makes a space on a machine ("" this one), saying why not.
+func (a *App) newSpaceOn(machine string) {
+	v := args{}
+	if machine != "" {
+		v["machine"] = machine
+	}
+	if _, err := a.do("space.new", v); err != nil {
+		a.notifyLevel(err.Error(), levelError)
+	}
 }
 
 func (a *App) spaceRow(c *ui.Context, k *colors, i int, s *layout.Space) {
@@ -70,6 +156,10 @@ func (a *App) spaceRow(c *ui.Context, k *colors, i int, s *layout.Space) {
 	label := a.spaceLabel(s)
 	row := ui.Row(c.Key(s.ID)).Height(sidebarRowH).Padding(0, 8).Gap(9).Radius(8).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Space " + label).Selected(active)
+	if !a.usable(s.Machine) {
+		// A machine not connected: its spaces show as they were.
+		row.Opacity(0.55).Tooltip(s.Machine + " is not connected")
+	}
 	if active {
 		row.Background(k.selected)
 	} else if row.Hovered() {
