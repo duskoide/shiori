@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -38,9 +39,9 @@ func TestReloadConfig(t *testing.T) {
 	// A broken file keeps the settings and the keys in use, and says so.
 	write("settings.json", "{oops")
 	write("keys.json", "{oops")
-	km := a.keymap
+	km := a.keymap.Clone()
 	a.reloadConfig(false)
-	if a.cfg.Font != "Iosevka" || a.keymap != km {
+	if a.cfg.Font != "Iosevka" || !reflect.DeepEqual(a.keymap, km) {
 		t.Fatal("a broken file replaced what was in use")
 	}
 

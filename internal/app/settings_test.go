@@ -139,7 +139,8 @@ func TestSettingsRecordAKey(t *testing.T) {
 	if got := a.keymap.KeysFor("tab.new"); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("keys %v", got)
 	}
-	if got := readKeysFile(t, a).KeysFor("tab.new"); strings.Join(got, ",") != strings.Join(want, ",") {
+	// keys.json holds what differs from the defaults.
+	if got := readKeysFile(t, a).KeysFor("tab.new"); strings.Join(got, ",") != "Ctrl+Alt+N" {
 		t.Fatalf("keys.json %v", got)
 	}
 	// The window's own write reads back as no change.

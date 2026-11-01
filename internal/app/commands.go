@@ -179,6 +179,9 @@ func (a *App) do(name string, v args) (any, error) {
 		if slices.Contains(unsupported, name) {
 			return nil, fmt.Errorf("%s is not supported by this app", name)
 		}
+		if err := a.offModError(name); err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("unknown command %q", name)
 	}
 	if v == nil {

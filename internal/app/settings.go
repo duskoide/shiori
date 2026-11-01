@@ -133,20 +133,34 @@ func (a *App) setSidebar(shown bool) {
 }
 
 // saveKeymap writes km to keys.json and uses it.
+// keys.json holds what differs from the default keys (and the mods'):
+// the chords bound otherwise, and "none" for those removed. When nothing
+// differs, there is no keys.json.
 func (a *App) saveKeymap(km *keys.Keymap) error {
-	b, err := km.Encode()
-	if err == nil {
-		err = os.MkdirAll(a.home, 0o755)
-	}
-	if err == nil {
-		err = os.WriteFile(filepath.Join(a.home, "keys.json"), b, 0o644)
+	user := keys.Diff(a.keysBase, km)
+	path := filepath.Join(a.home, "keys.json")
+	var b []byte
+	var err error
+	if user.Empty() {
+		if err = os.Remove(path); os.IsNotExist(err) {
+			err = nil
+		}
+	} else {
+		b, err = user.Encode()
+		if err == nil {
+			err = os.MkdirAll(a.home, 0o755)
+		}
+		if err == nil {
+			err = os.WriteFile(path, b, 0o644)
+		}
 	}
 	if err != nil {
 		a.notify("keys.json: " + err.Error())
 		return err
 	}
 	// Read back by the watcher, the same bytes are no change.
-	a.keymap, a.keysRaw, a.keysErr = km, b, ""
+	a.keysUser, a.keysRaw, a.keysErr = user, b, ""
+	a.buildKeymap()
 	return nil
 }
 
@@ -198,7 +212,7 @@ func (a *App) resetBinding(section, spec string) {
 	if err != nil {
 		return
 	}
-	for _, c := range keys.Default().ChordsFor(section, spec) {
+	for _, c := range a.keysBase.ChordsFor(section, spec) {
 		if old, had := km.Bind(section, c, act); had && old.Spec() != spec {
 			a.notify(fmt.Sprintf("%s now runs %s, no longer %s", c, a.actionTitle(section, spec), a.actionTitle(section, old.Spec())))
 		}
@@ -299,8 +313,11 @@ var bindingGroups = []struct{ prefix, title string }{
 	{"layout", "Window"}, {"mod", "Window"}, {"app", "Window"}, {"window", "Window"},
 }
 
-func groupOf(spec string) string {
+func (a *App) groupOf(spec string) string {
 	act, _ := keys.ParseAction(spec)
+	if c := a.findCommand(act.Command); c != nil && c.Mod != "" {
+		return a.modName(c.Mod) // a mod's commands go under its name
+	}
 	prefix, _, _ := strings.Cut(act.Command, ".")
 	for _, g := range bindingGroups {
 		if g.prefix == prefix {
@@ -335,7 +352,7 @@ func (a *App) rank(spec string) (int, string, int) {
 // bindingRows lists the actions of a section: those bound now or by
 // default, and, in the global section, every command of the palette.
 func (a *App) bindingRows(section string) []bindingRow {
-	def := keys.Default()
+	def := a.keysBase
 	specs := map[string]bool{}
 	for _, km := range []*keys.Keymap{def, a.keymap} {
 		for _, act := range km.Sections[section] {
@@ -344,7 +361,8 @@ func (a *App) bindingRows(section string) []bindingRow {
 	}
 	if section == "global" {
 		for _, c := range a.allCommands() {
-			if c.hidden || specs[c.Name] {
+			// A mod's hidden commands are only out of the palette: keys still run them.
+			if (c.hidden && c.Mod == "") || specs[c.Name] {
 				continue
 			}
 			// An unbound command whose bound form names its value
@@ -363,17 +381,20 @@ func (a *App) bindingRows(section string) []bindingRow {
 		r := bindingRow{section: section, spec: spec, title: a.actionTitle(section, spec), runs: a.actionRuns(section, spec),
 			chords: a.keymap.ChordsFor(section, spec), defaults: def.ChordsFor(section, spec)}
 		if section == "global" {
-			r.group = groupOf(spec)
+			r.group = a.groupOf(spec)
 		}
 		rows = append(rows, r)
 	}
 	groupIndex := func(g string) int {
-		for i, x := range []string{"Spaces", "Tabs", "Panes", "Agents", "Window", "Other"} {
+		for i, x := range []string{"Spaces", "Tabs", "Panes", "Agents", "Window"} {
 			if x == g {
 				return i
 			}
 		}
-		return 99
+		if g == "Other" {
+			return 99
+		}
+		return 50 // a mod's, after the app's own
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		gi, gj := groupIndex(rows[i].group), groupIndex(rows[j].group)
