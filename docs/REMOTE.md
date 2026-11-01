@@ -17,8 +17,8 @@ remote machines and learn to read, write and show them.
 - Commit as **Rafi Putra Nugraha <rafipeen@gmail.com>**, author and
   committer (`git -c user.name=… -c user.email=… commit`). No
   `Co-Authored-By`, no session or tool trailers, nothing naming an AI.
-- Meaningful branch names. Do not open pull requests; push the branch.
-  The owner merges, or says so when they want it merged into `main`.
+- Commit to `develop`, with no branch per feature, and push it. Do not
+  open pull requests. The owner says when `develop` goes into `main`.
 - One commit per phase below, each passing `make check` (vet, tests,
   gofmt) and `CGO_ENABLED=1 go test -race` on the packages it touches.
 - Every setting a file holds is shown and changeable in the settings
