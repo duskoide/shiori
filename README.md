@@ -104,7 +104,7 @@ herdr-app does: herdr-core on this machine reaches the other over SSH,
 and the other needs herdr-core (`hc`) too; Shiori there is optional. The
 window still runs here.
 
-1. Open Settings → Machines (or click the machines in the status bar).
+1. Open Settings → Machines.
 2. Type how SSH reaches it (`user@host`), or pick a host of your
    `~/.ssh/config`, and Add. Your SSH keys are used. When SSH needs an
    answer (a password, a host key) or herdr-core is missing there, the

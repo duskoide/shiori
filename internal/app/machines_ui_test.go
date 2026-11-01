@@ -130,7 +130,7 @@ func TestSSHHosts(t *testing.T) {
 }
 
 // The sidebar heads each machine's spaces, and its + makes a space there;
-// the status bar counts the machines and opens their page.
+// the status bar names the shown space's machine and opens their page.
 func TestMachinesInTheWindow(t *testing.T) {
 	a, f := machineApp(t)
 	f.runOK = true
@@ -138,10 +138,7 @@ func TestMachinesInTheWindow(t *testing.T) {
 	ms, _ := f.Machines(nil)
 	a.setMachines(ms)
 	tt := uxTester(a)
-	for _, s := range []string{"Machine This computer", "Machine mac", "Machine pve", "Space remote work", "1 machine"} {
-		if s == "1 machine" {
-			s = "2 machines"
-		}
+	for _, s := range []string{"Machine This computer", "Machine mac", "Machine pve", "Space remote work"} {
 		if !tt.HasText(s) {
 			t.Fatalf("no %q in %q", s, tt.Texts())
 		}
@@ -153,7 +150,8 @@ func TestMachinesInTheWindow(t *testing.T) {
 		t.Fatalf("%+v", f.runs[0])
 	}
 
-	mustClick(t, tt, "Machines")
+	// The new space is shown: the status bar names its machine.
+	mustClick(t, tt, "Machine of the space mac")
 	if !a.settings || a.set.section != "machines" {
 		t.Fatal("the machines page did not open")
 	}

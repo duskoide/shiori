@@ -279,8 +279,9 @@ machine leaves the list, its spaces go from the window.
    herdr-app keeps a machine's saves waiting); only terminals refuse.
 4. **Machines in the window.** Done (`machines.go`, `machinespage.go`):
    the sidebar heads each machine's spaces (state dot, `+` for a space
-   there, greyed spaces while it is not connected); the status bar counts
-   the machines and opens Settings → Machines, which lists them (state,
+   there, greyed spaces while it is not connected); the status bar names
+   the shown space's machine (its count of machines was dropped later)
+   and opens Settings → Machines, which lists them (state,
    why, version) with Log in, Update (older core), Rename and Remove
    (confirmed inline), and adds one by target or from `~/.ssh/config`,
    going on in a tab when `core.AddNeedsPerson`. Commands
