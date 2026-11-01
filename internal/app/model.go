@@ -225,18 +225,29 @@ func (a *App) spaceLabel(s *layout.Space) string {
 	for _, t := range s.Tabs {
 		for _, p := range t.Panes() {
 			if cwd := a.cwdOf(p); cwd != "" {
-				return folderName(cwd)
+				return folderName(cwd, s.Machine)
 			}
 		}
 	}
-	return s.Label(homeDir())
+	return s.Label(machineHome(s.Machine))
 }
 
-func folderName(dir string) string {
-	if dir == homeDir() {
+// folderName is a folder's last name, "~" for this machine's home: another
+// machine's home is not known here.
+func folderName(dir, machine string) string {
+	if machine == "" && dir == homeDir() {
 		return "~"
 	}
 	return filepath.Base(dir)
+}
+
+// pathOn is a path as the window shows it: this machine's with ~ for the
+// home, another machine's after its name ("mac:/srv/app").
+func pathOn(machine, dir string) string {
+	if machine != "" {
+		return machine + ":" + dir
+	}
+	return tildePath(dir)
 }
 
 // tabLabel names a tab: its name, else its focused program.

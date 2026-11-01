@@ -27,7 +27,7 @@ type snapSpace struct{ name, label, folder, machine string }
 type snapTab struct{ space, name, label string }
 type snapPane struct{ space, tab, terminal string }
 type snapAgent struct{ terminal, app, status string }
-type snapFocus struct{ space, tab, pane, terminal, cwd string }
+type snapFocus struct{ space, tab, pane, terminal, cwd, machine string }
 type snapMachine struct{ state, why string }
 
 // stateSnap is what events are worked out from.
@@ -80,6 +80,9 @@ func (a *App) snapshot() *stateSnap {
 		}
 	}
 	s.focus.space = a.activeSpace
+	if sp := a.space(); sp != nil {
+		s.focus.machine = sp.Machine
+	}
 	if t := a.tab(); t != nil {
 		s.focus.tab = t.ID
 		if p := a.pane(); p != nil {
@@ -156,7 +159,7 @@ func diffEvents(old, now *stateSnap) []event {
 	}
 	if old.focus != now.focus {
 		f := now.focus
-		add("focus.changed", map[string]string{"space": f.space, "tab": f.tab, "pane": f.pane, "terminal": f.terminal, "cwd": f.cwd})
+		add("focus.changed", map[string]string{"space": f.space, "tab": f.tab, "pane": f.pane, "terminal": f.terminal, "cwd": f.cwd, "machine": f.machine})
 	}
 	if old.focused != now.focused {
 		add("window.focus", map[string]bool{"focused": now.focused})

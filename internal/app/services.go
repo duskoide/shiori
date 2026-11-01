@@ -312,7 +312,7 @@ func (a *App) withService(st *modState, fn func(*rpcSession, error)) {
 func (a *App) runOnService(st *modState, mc mods.Command, v args) (any, error) {
 	f := a.snapshot().focus
 	params := map[string]any{"command": st.ID + "." + mc.Name, "args": v,
-		"context": map[string]string{"space": f.space, "tab": f.tab, "pane": f.pane, "terminal": f.terminal, "cwd": f.cwd}}
+		"context": map[string]string{"space": f.space, "tab": f.tab, "pane": f.pane, "terminal": f.terminal, "cwd": f.cwd, "machine": f.machine}}
 	if params["args"] == nil {
 		params["args"] = map[string]any{}
 	}

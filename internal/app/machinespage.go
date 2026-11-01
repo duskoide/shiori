@@ -32,7 +32,7 @@ func (a *App) machinesPage(c *ui.Context, k *colors) {
 		case !a.connected:
 			machinesNote(c, k, "Not connected to herdr-core", "Machines show once the window reaches the core.")
 		case len(a.machines) == 0:
-			machinesNote(c, k, "No other machines yet", "Add one below: the core copies itself there when it has to.")
+			machinesNote(c, k, "No other machines yet", "Add one below. It needs herdr-core (hc) there.")
 		}
 		for _, m := range a.machines {
 			a.machineCard(c, k, m)

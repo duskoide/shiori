@@ -219,3 +219,77 @@ func TestMachinesInLsStatusAndEvents(t *testing.T) {
 		t.Fatalf("%+v", evs)
 	}
 }
+
+// fakeExecScript stands in for hc exec on mac: /srv/app is a git work
+// tree with a change, /srv/plain is not.
+const fakeExecScript = `#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_HC_LOG"
+b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
+case "$*" in
+*"--cwd /srv/app -- git --no-optional-locks rev-parse"*) echo "{\"code\":0,\"stdout\":\"$(b64 '/srv/app
+')\",\"stderr\":\"\"}" ;;
+*"--cwd /srv/app -- git --no-optional-locks status"*) printf '{"code":0,"stdout":"%s","stderr":""}\n' "$(printf ' M main.go\000?? new.go\000' | base64 | tr -d '\n')" ;;
+*"--cwd /srv/plain -- git"*) echo '{"code":128,"stdout":"","stderr":""}' ;;
+*) echo '{"error":{"message":"unexpected"}}'; exit 1 ;;
+esac
+`
+
+// The changes panel of another machine's space asks git there, through
+// hc exec, and its rows open what they show on that machine.
+func TestChangesPanelOnMachine(t *testing.T) {
+	a, f := machineApp(t)
+	f.runOK = true
+	dir := t.TempDir()
+	bin, log := filepath.Join(dir, "hc"), filepath.Join(dir, "log")
+	os.WriteFile(bin, []byte(fakeExecScript), 0o755)
+	a.hc = &core.HC{Bin: bin, Env: []string{"FAKE_HC_LOG=" + log}}
+	a.doc.Space("mac/sp9").Folder = "/srv/app"
+	a.activeSpace = "mac/sp9"
+	on := true
+	a.cfg.Changes = &on
+	t.Cleanup(a.stopChanges)
+	tt := uxTester(a)
+	frameUntil(t, tt, "mac's changes", func() bool { return tt.HasText("Change main.go") && tt.HasText("Change new.go") })
+	if !tt.HasText("mac:/srv/app · what differs from the last commit") {
+		t.Fatal(tt.Texts())
+	}
+	b, _ := os.ReadFile(log)
+	if !strings.Contains(string(b), "exec --json --on mac --timeout 20 --cwd /srv/app -- git --no-optional-locks status") {
+		t.Fatal(string(b))
+	}
+	// Changes seen before the panel looked have no age.
+	if !a.chg.snap.Files[0].Time.IsZero() {
+		t.Fatalf("%+v", a.chg.snap.Files)
+	}
+	if err := tt.RightClick("Change main.go"); err != nil {
+		t.Fatal(err)
+	}
+	if menu := tt.Menu(); slices.Contains(menu, "Open in editor") || !slices.Contains(menu, "Show changes") {
+		t.Fatal(menu)
+	}
+	tt.CloseMenu()
+	mustClick(t, tt, "Change main.go")
+	until(t, a, "the diff tab", func() bool { f.mu.Lock(); defer f.mu.Unlock(); return len(f.runs) == 1 })
+	if r := f.runs[0]; r.On != "mac" || r.Cwd != "/srv/app" || !strings.Contains(strings.Join(r.Argv, " "), "git diff HEAD -- main.go") {
+		t.Fatalf("%+v", r)
+	}
+
+	a.doc.Space("mac/sp9").Folder = "/srv/plain"
+	frameUntil(t, tt, "not in git", func() bool { return tt.HasText("Changes outside git are not shown for other machines.") })
+}
+
+func TestPathsOfMachines(t *testing.T) {
+	home := homeDir()
+	if pathOn("", home+"/src") != "~/src" || pathOn("mac", home+"/src") != "mac:"+home+"/src" {
+		t.Fatal(pathOn("", home+"/src"), pathOn("mac", home+"/src"))
+	}
+	if folderName(home, "") != "~" || folderName(home, "mac") == "~" {
+		t.Fatal("another machine's home is not known here")
+	}
+	a, _ := machineApp(t)
+	a.activeSpace = "mac/sp9"
+	env := strings.Join(a.modEnv(&modState{ID: "x"}), "\n")
+	if !strings.Contains(env, "\nSHIORI_MACHINE=mac") || !strings.Contains(env, "\nSHIORI_SPACE=mac/sp9") {
+		t.Fatal(env)
+	}
+}

@@ -220,7 +220,8 @@ func (a *App) modEnv(st *modState) []string {
 	set("SHIORI_TAB", f.tab)
 	set("SHIORI_PANE", f.pane)
 	set("SHIORI_TERMINAL", f.terminal)
-	set("SHIORI_CWD", f.cwd)
+	set("SHIORI_CWD", f.cwd)         // on SHIORI_MACHINE
+	set("SHIORI_MACHINE", f.machine) // "" this one
 	return env
 }
 

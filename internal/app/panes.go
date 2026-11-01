@@ -231,7 +231,7 @@ func (a *App) paneHeader(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node
 		ui.Row(c).Grow(1).MinWidth(0).Gap(6).AlignItems(ui.Center).ClipX().Children(func() {
 			ui.Text(c, a.paneName(p)).FontSize(12.5).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").Shrink(0).MaxWidthPercent(70)
 			if cwd := a.cwdOf(p); cwd != "" {
-				ui.Text(c, tildePath(cwd)).FontSize(12).TextColor(k.dim).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+				ui.Text(c, pathOn(layout.MachineOf(rec.Address), cwd)).FontSize(12).TextColor(k.dim).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 			}
 			if ok {
 				statusMark(c, k, a.word(rec), true)

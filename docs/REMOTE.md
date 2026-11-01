@@ -1,6 +1,6 @@
 # Remote machines — plan
 
-Status: phases 0 to 4 done (below). Branch `remote-machines`
+Status: phases 0 to 5 done (below). Branch `remote-machines`
 (from `main` at `0a8c145`). Reference: herdr-app, public at
 https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
 
@@ -285,9 +285,16 @@ machine leaves the list, its spaces go from the window.
    `ls` gives spaces' `machine` and `machines`, `status` each machine's
    layout state; the `machine.changed` event (and `machine` in
    `space.created`).
-5. **Remote-aware features.** Changes panel through `hc exec`;
-   `SHIORI_MACHINE`; machine fields in events; paths shortened only
-   locally; "Open in editor" local only.
+5. **Remote-aware features.** Done: `changes.Options.Run` runs git on
+   another machine (`hc exec`; `rev-parse --show-toplevel --show-prefix`,
+   then `status`), times being when a change was first seen (none for the
+   first scan), and `changes.ErrNotGit` outside git; the panel watches
+   the active space's folder on its machine, shows `mac:/path`, opens
+   diffs in that space, and has no "Open in editor" for another machine.
+   `SHIORI_MACHINE` for mods; `machine` in `focus.changed` and in a
+   service's `command.run` context. `pathOn` and `folderName` shorten
+   only this machine's paths; agents of another machine read
+   `mac · space`.
 6. **Docs.** README (features; Machines page; "Work on another machine"),
    docs/PROTOCOL.md (the `hc` commands above), docs/CONTRACTS.md (layout
    and core additions), docs/MODS.md (events). Screenshots checked by eye
