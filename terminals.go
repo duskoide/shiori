@@ -17,6 +17,7 @@ type paneTerm struct {
 	term    *terminal.Terminal
 	stream  *core.Stream
 	closing bool // its pane closed here: its end is no news
+	focus   bool // what the core was last told about the viewer's focus
 }
 
 // termFor returns the terminal a pane shows, attaching to the core's
@@ -36,7 +37,8 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 		delete(a.retry, addr)
 	}
 	k := a.k
-	st := a.client.Stream(addr, &core.Display{FG: hexOf(k.terminalForeground), BG: hexOf(k.background), Cursor: hexOf(k.cursor)})
+	d := a.display()
+	st := a.client.Stream(addr, &d)
 	pt := &paneTerm{addr: addr, stream: st}
 	t, err := terminal.New(terminal.Options{
 		Conn:      st,
@@ -54,14 +56,7 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 			return a.terminalKey(pt, mods, key)
 		},
 		OnZoom: func(z terminal.Zoom) bool {
-			switch {
-			case z.Reset:
-				a.zoomBy(0)
-			case z.Steps > 0:
-				a.zoomBy(1)
-			case z.Steps < 0:
-				a.zoomBy(-1)
-			}
+			a.post(func() { a.zoomSteps(z) })
 			return true
 		},
 	})
@@ -74,6 +69,41 @@ func (a *App) termFor(c *ui.Context, addr string) *paneTerm {
 	pt.term = t
 	a.terms[addr] = pt
 	return pt
+}
+
+// zoomSteps changes the text size of the terminals by the steps of z, or
+// back to the default, and saves the settings once the steps are over.
+func (a *App) zoomSteps(z terminal.Zoom) {
+	switch {
+	case z.Reset:
+		a.cfg.FontSize = 0
+	case z.Steps != 0:
+		a.cfg.FontSize = a.cfg.fontSize() + float32(z.Steps)
+	default:
+		return
+	}
+	for _, pt := range a.terms {
+		pt.term.SetFont(a.termFont())
+	}
+	a.saveSettingsSoon()
+}
+
+// syncFocus tells the core which terminal this window has the focus on:
+// the focused pane of the active tab while the window has the focus. A
+// terminal hears of it when that changes, not every frame.
+func (a *App) syncFocus() {
+	var want string
+	if a.focused {
+		if p := a.pane(); p != nil && p.Content != nil {
+			want = p.Content.Terminal
+		}
+	}
+	for addr, pt := range a.terms {
+		if f := want != "" && addr == want; f != pt.focus {
+			pt.focus = f
+			pt.stream.Focus(f)
+		}
+	}
 }
 
 // termEnded handles the end of a terminal's stream: the program ended,
@@ -103,7 +133,9 @@ func (a *App) closeTerminalPanes(addr string) {
 		if p == nil {
 			break
 		}
-		t.RemovePane(p.ID)
+		if !t.RemovePane(p.ID) {
+			break
+		}
 		if len(t.Panes()) == 0 {
 			s.RemoveTab(t.ID)
 			if len(s.Tabs) == 0 {
@@ -238,10 +270,23 @@ func chordOf(mods ui.Modifiers, key ui.Key) (keys.Chord, bool) {
 	return keys.Chord{}, false
 }
 
+// shortcutAllowed says whether a global key's command may run now: not
+// while a prompt, a confirmation or the settings are open, and with the
+// palette open only the keys that toggle it or open a mod.
+func (a *App) shortcutAllowed(cmd string) bool {
+	switch {
+	case a.prompt != nil || a.confirm != nil || a.settings:
+		return false
+	case a.palette.open:
+		return cmd == "app.palette" || cmd == "mod.open"
+	}
+	return true
+}
+
 // shortcuts runs the "global" keys of keys.json.
 func (a *App) shortcuts(c *ui.Context) {
 	for chord, act := range a.keymap.Sections["global"] {
-		if act.Command == "" || findCommand(act.Command) == nil && findCommand(act.Command+":"+act.Arg) == nil {
+		if act.Command == "" || !a.shortcutAllowed(act.Command) || findCommand(act.Command) == nil && findCommand(act.Command+":"+act.Arg) == nil {
 			continue
 		}
 		mods, key, ok := uiChord(chord)
@@ -251,6 +296,12 @@ func (a *App) shortcuts(c *ui.Context) {
 		cmd, value := act.Command, act.Arg
 		if findCommand(cmd+":"+value) != nil {
 			cmd, value = cmd+":"+value, ""
+		}
+		if cmd == "app.palette" && a.palette.open {
+			// The key that opened the palette closes it.
+			a.palette.open = false
+			a.focusReq = a.focus[a.activeTab[a.activeSpace]]
+			continue
 		}
 		a.post(func() { a.doAction(cmd, value) })
 	}
