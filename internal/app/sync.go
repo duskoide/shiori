@@ -523,8 +523,8 @@ func (a *App) later(d time.Duration, fn func()) {
 // reconcile matches panes with terminals: a pane whose terminal finished
 // or is gone closes, and a live terminal labelled with one of our spaces
 // that no pane shows gets one (herdr-app's adoption, docs/labels.md).
-// Only this machine's terminals count; other machines' have documents of
-// their own.
+// Another machine's terminals count once it is connected and its document
+// read: until then nothing is known of them.
 func (a *App) reconcile() {
 	if !a.local().loaded || !a.connected {
 		return
@@ -542,7 +542,7 @@ func (a *App) reconcile() {
 	for _, s := range a.doc.Spaces {
 		for _, t := range s.Tabs {
 			for _, p := range t.Panes() {
-				if p.Content == nil || p.Content.Terminal == "" || remote(p.Content.Terminal) {
+				if p.Content == nil || p.Content.Terminal == "" || !a.terminalsKnown(layout.MachineOf(p.Content.Terminal)) {
 					continue
 				}
 				addr := p.Content.Terminal
@@ -597,19 +597,28 @@ func (a *App) reconcile() {
 	}
 }
 
-// remote reports whether a terminal address is another machine's
-// ("machine/t7").
-func remote(addr string) bool { return strings.Contains(addr, "/") }
+// terminalsKnown reports whether the window can tell which of a
+// machine's terminals its panes should show: this machine's always,
+// another's while it is connected and its document is read.
+func (a *App) terminalsKnown(machine string) bool {
+	if machine == "" {
+		return true
+	}
+	ds := a.docs[machine]
+	return ds != nil && ds.loaded && a.usable(machine)
+}
 
 // orphan reports whether a terminal is one of ours that no pane shows.
+// Its labels name a space and tab as its machine's document does.
 func (a *App) orphan(rec core.Terminal) bool {
-	if rec.State != "live" || remote(rec.Address) || a.gone[rec.Address] {
+	m := layout.MachineOf(rec.Address)
+	if rec.State != "live" || !a.terminalsKnown(m) || a.gone[rec.Address] {
 		return false
 	}
 	if _, waiting := a.pending[rec.Address]; waiting {
 		return false
 	}
-	if rec.Labels["herdr.space"] == "" || a.spawning[rec.Labels["herdr.tab"]] > 0 {
+	if rec.Labels["herdr.space"] == "" || a.spawning[layout.Qualify(rec.Labels["herdr.tab"], m)] > 0 {
 		return false
 	}
 	_, _, p := a.doc.PaneOfTerminal(rec.Address)
@@ -628,6 +637,7 @@ func (a *App) startAdoption(rec core.Terminal) {
 	}
 	a.sy.adopting[rec.Address] = true
 	be, gen, addr := a.core, a.sy.gen, rec.Address
+	m := layout.MachineOf(addr)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
@@ -641,7 +651,7 @@ func (a *App) startAdoption(rec core.Terminal) {
 		var value json.RawMessage
 		var version uint64
 		if ok {
-			value, version, err = be.DocGet(ctx, docName, "")
+			value, version, err = be.DocGet(ctx, docName, m)
 			ok = err == nil
 		}
 		a.post(func() {
@@ -652,8 +662,8 @@ func (a *App) startAdoption(rec core.Terminal) {
 			if !ok {
 				return
 			}
-			a.remoteDoc("", value, version)
-			if ls := a.local(); ls.saving || a.dragging || version > ls.version {
+			a.remoteDoc(m, value, version)
+			if ds := a.ds(m); ds.saving || a.dragging || version > ds.version {
 				// The document is moving: decide on a later pass.
 				a.later(adoptGrace, a.reconcile)
 				return
@@ -704,12 +714,14 @@ func (a *App) checkMissing(addr string) {
 	}()
 }
 
-// adopt gives a labelled terminal a pane in its space and tab.
+// adopt gives a labelled terminal a pane in its space and tab, on its
+// machine.
 func (a *App) adopt(rec core.Terminal) {
-	spaceID, tabID := rec.Labels["herdr.space"], rec.Labels["herdr.tab"]
+	m := layout.MachineOf(rec.Address)
+	spaceID, tabID := layout.Qualify(rec.Labels["herdr.space"], m), layout.Qualify(rec.Labels["herdr.tab"], m)
 	s := a.doc.Space(spaceID)
 	if s == nil {
-		s = a.doc.AddSpace("", rec.Cwd)
+		s = a.doc.AddSpaceOn(m, "", rec.Cwd)
 		s.ID = spaceID
 	}
 	if tabID != "" {

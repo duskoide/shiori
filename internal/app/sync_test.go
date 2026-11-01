@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -24,6 +25,9 @@ type fakeCore struct {
 	machines []core.Machine
 	others   map[string]*fakeDoc // other machines' documents
 	gets     map[string]int      // DocGet calls by machine
+	runOK    bool
+	runs     []core.RunParams
+	labels   map[string]map[string]string
 }
 
 // fakeDoc is another machine's document.
@@ -54,9 +58,32 @@ func (f *fakeCore) slot(on string) (*json.RawMessage, *uint64) {
 	return &d.doc, &d.version
 }
 
-func (f *fakeCore) Run(context.Context, core.RunParams) (string, error) { return "", errors.New("no") }
-func (f *fakeCore) Kill(context.Context, string) error                  { return nil }
-func (f *fakeCore) Label(context.Context, string, map[string]string) error {
+// Run starts a terminal when the test let it (runOK), on the machine
+// asked: "mac/t20" on mac.
+func (f *fakeCore) Run(_ context.Context, p core.RunParams) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.runOK {
+		return "", errors.New("no")
+	}
+	f.runs = append(f.runs, p)
+	addr := fmt.Sprintf("t%d", 19+len(f.runs))
+	if p.On != "" {
+		addr = p.On + "/" + addr
+	}
+	f.terms[addr] = core.Terminal{Address: addr, State: "live", Labels: p.Labels}
+	return addr, nil
+}
+
+func (f *fakeCore) Kill(context.Context, string) error { return nil }
+
+func (f *fakeCore) Label(_ context.Context, addr string, l map[string]string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.labels == nil {
+		f.labels = map[string]map[string]string{}
+	}
+	f.labels[addr] = l
 	return nil
 }
 

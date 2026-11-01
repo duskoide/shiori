@@ -258,18 +258,75 @@ func (a *App) ready() error {
 	return nil
 }
 
-// spawn starts a terminal for a pane in a tab of a space, off the main
-// thread, and calls place with its address once it runs.
-func (a *App) spawn(spaceID, tabID, cwd string, argv []string, place func(addr string)) {
-	if m := layout.MachineOf(spaceID); m != "" {
-		a.notifyLevel("Cannot start a terminal on "+m+" yet: other machines' spaces are shown, not run from here", levelError)
-		return
+// spawn starts a terminal for a pane in a tab of a space, on the space's
+// machine, off the main thread, and calls place with its address once it
+// runs. Its labels name the space and tab as that machine's document does;
+// an empty cwd is that machine's home.
+func (a *App) spawn(spaceID, tabID, cwd string, argv []string, place func(addr string)) error {
+	m := layout.MachineOf(spaceID)
+	if err := a.machineReady(m); err != nil {
+		return err
 	}
 	be := a.core
-	labels := map[string]string{"herdr.space": spaceID, "herdr.tab": tabID, "herdr.seen": "0"}
+	labels := map[string]string{"herdr.space": layout.Local(spaceID, m), "herdr.tab": layout.Local(tabID, m), "herdr.seen": "0"}
 	a.obtain(tabID, func(ctx context.Context) (string, error) {
-		return be.Run(ctx, core.RunParams{Argv: argv, Cwd: cwd, Labels: labels, Keep: true})
+		addr, err := be.Run(ctx, core.RunParams{Argv: argv, Cwd: cwd, Labels: labels, Keep: true, On: m})
+		if err == nil && layout.MachineOf(addr) != m {
+			addr = layout.Qualify(addr, m) // the core names it so already
+		}
+		return addr, err
 	}, place)
+	return nil
+}
+
+// machineReady says why terminals cannot start on a machine, if they
+// cannot: it is not listed, not connected, or its layout is not read yet.
+func (a *App) machineReady(machine string) error {
+	if machine == "" {
+		return nil
+	}
+	m, ok := a.machine(machine)
+	switch {
+	case !ok:
+		return fmt.Errorf("no machine %q: hc machine ls lists them (temporary machines stay out of Shiori)", machine)
+	case m.State == core.MachineNeedsLogin:
+		return fmt.Errorf("%s needs you to log in again (hc machine login %s)", machine, machine)
+	case m.State == core.MachineNeedsUpdate:
+		return fmt.Errorf("%s needs its herdr-core updated (hc machine update %s)", machine, machine)
+	case !m.Usable():
+		return fmt.Errorf("%s is not connected; try again when it reconnects", machine)
+	}
+	if ds := a.docs[machine]; ds == nil || !ds.loaded {
+		return fmt.Errorf("the layout of %s is not read yet; try again in a moment", machine)
+	}
+	return nil
+}
+
+// machineHome is a machine's home folder as a terminal's cwd: this one's,
+// or "" (the core starts another machine's terminals in its home).
+func machineHome(machine string) string {
+	if machine == "" {
+		return homeDir()
+	}
+	return ""
+}
+
+// folderFor is where a new terminal in a space starts: the focused pane's
+// folder when it is on the space's machine, else the space's folder, else
+// that machine's home.
+func (a *App) folderFor(s *layout.Space) string {
+	if s == nil {
+		return a.focusedFolder()
+	}
+	if p := a.pane(); p != nil && p.Content != nil && layout.MachineOf(p.Content.Terminal) == s.Machine {
+		if cwd := a.cwdOf(p); cwd != "" {
+			return cwd
+		}
+	}
+	if s.Folder != "" {
+		return s.Folder
+	}
+	return machineHome(s.Machine)
 }
 
 // obtain gets a terminal with work, off the main thread, and calls place
@@ -348,7 +405,7 @@ func argvOf(v args) ([]string, error) {
 // launchArgv is what a new terminal runs: the argv given, with the task
 // as its first message, in a shell that stays when the program exits, as
 // herdr-app does. Without an argv it is nil: the default shell.
-func launchArgv(v args) ([]string, error) {
+func launchArgv(v args, machine string) ([]string, error) {
 	argv, err := argvOf(v)
 	if err != nil || len(argv) == 0 {
 		return nil, err
@@ -356,6 +413,9 @@ func launchArgv(v args) ([]string, error) {
 	cmd := slices.Clone(argv)
 	if task := v.str("task"); task != "" {
 		cmd = append(cmd, task)
+	}
+	if machine != "" {
+		return remoteLaunch(cmd), nil
 	}
 	sh := os.Getenv("SHELL")
 	if sh == "" {
@@ -380,6 +440,22 @@ func launchArgv(v args) ([]string, error) {
 	return append([]string{sh, shellFlag, script, sh}, cmd...), nil
 }
 
+// remoteLaunch runs cmd on another machine in that machine's login and
+// interactive shell, picked from its $SHELL, and stays in the shell after
+// it: the core there may have only SSH's minimal PATH, so profiles load
+// first. It is herdr-app's (remote_shell.rs); the command goes as
+// arguments, so no word of it becomes shell source.
+func remoteLaunch(cmd []string) []string {
+	quote := func(s string) string { return strings.ReplaceAll(s, "'", `'\''`) }
+	script := `shell=${SHELL:-/bin/sh}
+case "${shell##*/}" in
+  fish) exec "$shell" -lic '` + quote(`command $argv[2..]; exec $argv[1] -li`) + `' "$shell" "$@" ;;
+  sh|bash|zsh|dash|ksh) exec "$shell" -lic '` + quote(`"$@"; exec "$0" -li`) + `' "$shell" "$@" ;;
+  *) exec sh -c '` + quote(`"$@"; exec "${SHELL:-sh}" -i`) + `' sh "$@" ;;
+esac`
+	return append([]string{"sh", "-c", script, "sh"}, cmd...)
+}
+
 // noMods rejects the mod and props arguments: this app has no mods.
 func noMods(v args) error {
 	if v.str("mod") != "" || v["props"] != nil {
@@ -401,26 +477,39 @@ func (a *App) cmdSpaceNew(v args) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	if m := v.str("machine"); !localMachine(m) {
-		return nil, fmt.Errorf("machine %q is not supported by this app: only this machine", m)
+	m := v.str("machine")
+	if localMachine(m) {
+		m = ""
 	}
-	argv, err := launchArgv(v)
+	if err := a.machineReady(m); err != nil {
+		return nil, err
+	}
+	argv, err := launchArgv(v, m)
 	if err != nil {
 		return nil, err
 	}
 	folder := v.str("folder")
 	if folder == "" {
-		if folder = a.cwdOf(a.pane()); folder == "" {
-			folder = homeDir()
+		// The focused pane's folder means something on its own machine
+		// only; another machine's space starts in its home.
+		if p := a.pane(); p != nil && p.Content != nil && layout.MachineOf(p.Content.Terminal) == m {
+			folder = a.cwdOf(p)
 		}
+		if folder == "" {
+			folder = machineHome(m)
+		}
+	}
+	name, tabName := v.str("name"), v.str("tab")
+	if name == "" && folder == "" {
+		name = m // a space in a machine's home is named after it
 	}
 	// The space appears with its first terminal: an empty one would be
 	// pruned.
-	name, tabName, spaceID, tabID := v.str("name"), v.str("tab"), layout.NewID("sp"), layout.NewID("tb")
-	a.spawn(spaceID, tabID, folder, argv, func(addr string) {
+	spaceID, tabID := layout.NewIDOn(m, "sp"), layout.NewIDOn(m, "tb")
+	err = a.spawn(spaceID, tabID, folder, argv, func(addr string) {
 		s := a.doc.Space(spaceID)
 		if s == nil {
-			s = a.doc.AddSpace(name, folder)
+			s = a.doc.AddSpaceOn(m, name, folder)
 			s.ID = spaceID
 		}
 		t, p := s.AddTab(tabName, addr)
@@ -429,6 +518,9 @@ func (a *App) cmdSpaceNew(v args) (any, error) {
 		a.setFocus(t, p.ID)
 		a.focusReq = p.ID
 	})
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{"space": spaceID, "tab": tabID}, nil
 }
 
@@ -593,16 +685,16 @@ func (a *App) cmdTabNew(v args) (any, error) {
 	if s == nil {
 		return a.cmdSpaceNew(args{"folder": v.str("folder"), "argv": v["argv"], "task": v.str("task")})
 	}
-	argv, err := launchArgv(v)
+	argv, err := launchArgv(v, s.Machine)
 	if err != nil {
 		return nil, err
 	}
 	folder := v.str("folder")
 	if folder == "" {
-		folder = a.focusedFolder()
+		folder = a.folderFor(s)
 	}
-	spaceID, tabID, name := s.ID, layout.NewID("tb"), v.str("name")
-	a.spawn(spaceID, tabID, folder, argv, func(addr string) {
+	spaceID, tabID, name := s.ID, layout.NewIDOn(s.Machine, "tb"), v.str("name")
+	err = a.spawn(spaceID, tabID, folder, argv, func(addr string) {
 		s := a.doc.Space(spaceID)
 		if s == nil {
 			return
@@ -616,6 +708,9 @@ func (a *App) cmdTabNew(v args) (any, error) {
 		a.setFocus(t, p.ID)
 		a.focusReq = p.ID
 	})
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{"tab": tabID}, nil
 }
 
@@ -769,8 +864,7 @@ func (a *App) cmdPaneSplit(v args) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	argv, err := launchArgv(v)
-	if err != nil {
+	if _, err := argvOf(v); err != nil {
 		return nil, err
 	}
 	// Without a pane to split a new tab is the next best thing; a pane that
@@ -782,15 +876,20 @@ func (a *App) cmdPaneSplit(v args) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The new pane runs on the space's machine.
+	argv, err := launchArgv(v, s.Machine)
+	if err != nil {
+		return nil, err
+	}
 	cwd := v.str("folder")
-	if cwd == "" {
+	if cwd == "" && p.Content != nil && layout.MachineOf(p.Content.Terminal) == s.Machine {
 		cwd = a.cwdOf(p)
 	}
 	if cwd == "" {
-		cwd = a.focusedFolder()
+		cwd = a.folderFor(s)
 	}
 	paneID, tabID := p.ID, t.ID
-	a.spawn(s.ID, t.ID, cwd, argv, func(addr string) {
+	err = a.spawn(s.ID, t.ID, cwd, argv, func(addr string) {
 		_, t := a.doc.Tab(tabID)
 		if t == nil {
 			return
@@ -807,7 +906,7 @@ func (a *App) cmdPaneSplit(v args) (any, error) {
 		a.setFocus(t, n.ID)
 		a.focusReq = n.ID
 	})
-	return nil, nil
+	return nil, err
 }
 
 // dropPane removes a pane from its tab, and the tab and space when that
@@ -956,14 +1055,6 @@ func (a *App) cmdTerminalOpen(v args) (any, error) {
 	}
 }
 
-// localTerminal checks that addr names a terminal of this machine.
-func localTerminal(addr string) error {
-	if strings.Contains(addr, "/") {
-		return fmt.Errorf("terminal %q is on another machine: only this machine is supported by this app", addr)
-	}
-	return nil
-}
-
 // cmdTerminalKeep gives a running terminal that has no pane one: a new tab
 // of the shown space, or right/down of the focused pane.
 func (a *App) cmdTerminalKeep(v args) (any, error) {
@@ -971,7 +1062,8 @@ func (a *App) cmdTerminalKeep(v args) (any, error) {
 		return nil, err
 	}
 	addr := v.str("terminal")
-	if err := localTerminal(addr); err != nil {
+	m := layout.MachineOf(addr)
+	if err := a.machineReady(m); err != nil {
 		return nil, err
 	}
 	if _, _, p := a.doc.PaneOfTerminal(addr); p != nil {
@@ -989,19 +1081,33 @@ func (a *App) cmdTerminalKeep(v args) (any, error) {
 	if place != "tab" && (!split || (dir != layout.Right && dir != layout.Down)) {
 		return nil, fmt.Errorf("place is tab, right or down")
 	}
-	s := a.space()
+	// It goes into the shown space when that is on its machine, else the
+	// first of its machine's spaces.
+	s, shown := a.space(), true
+	if s == nil || s.Machine != m {
+		s, shown = nil, false
+		for _, x := range a.doc.Spaces {
+			if x.Machine == m {
+				s = x
+				break
+			}
+		}
+	}
 	if s == nil {
+		if m != "" {
+			return nil, fmt.Errorf("no space of %s to keep it in: make one first (space.new with machine %s)", m, m)
+		}
 		return nil, fmt.Errorf("no space to keep it in")
 	}
 	var targetID string
-	tabID := layout.NewID("tb")
-	if split {
+	tabID := layout.NewIDOn(m, "tb")
+	if split && shown {
 		if p := a.pane(); p != nil {
 			targetID, tabID = p.ID, a.tab().ID
 		}
 	}
 	spaceID, be := s.ID, a.core
-	labels := map[string]string{"herdr.space": spaceID, "herdr.tab": tabID}
+	labels := map[string]string{"herdr.space": layout.Local(spaceID, m), "herdr.tab": layout.Local(tabID, m)}
 	a.obtain(tabID, func(ctx context.Context) (string, error) {
 		if err := be.Label(ctx, addr, labels); err != nil {
 			return "", err
@@ -1040,9 +1146,6 @@ func (a *App) cmdTerminalPark(v args) (any, error) {
 		return nil, err
 	}
 	addr := v.str("terminal")
-	if err := localTerminal(addr); err != nil {
-		return nil, err
-	}
 	if _, ok := a.terminals[addr]; !ok {
 		return nil, fmt.Errorf("no terminal %q", addr)
 	}

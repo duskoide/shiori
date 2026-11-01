@@ -1,6 +1,6 @@
 # Remote machines — plan
 
-Status: phases 0, 1 and 2 done (below). Branch `remote-machines`
+Status: phases 0 to 3 done (below). Branch `remote-machines`
 (from `main` at `0a8c145`). Reference: herdr-app, public at
 https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
 
@@ -261,14 +261,19 @@ machine leaves the list, its spaces go from the window.
    wait; one that leaves takes its spaces away. Until phase 3, `spawn`
    refuses spaces of other machines. Tests: `internal/app/machines_test.go`
    (`fakeCore` has machines and a document per machine).
-3. **Terminals on other machines.**
-   - Spawn, split, adopt, keep and park on other machines (lift the
-     refusal in `spawn`); labels hold that machine's ids; herdr-app's
-     remote launch script.
-   - `reconcile`, `orphan`, `checkMissing` for remote addresses once that
-     machine is usable and its document loaded.
-   - Disconnected machines read only in the window (no edits).
-   - `space.new --machine`, starting in that machine's home.
+3. **Terminals on other machines.** Done: `spawn` starts a terminal on
+   its space's machine (`On`, labels in that machine's ids, an empty cwd
+   for its home) after `machineReady` (listed, connected, document read;
+   says why not, with the `hc machine login/update` to run).
+   `launchArgv(v, machine)` uses herdr-app's remote launch script
+   (`remoteLaunch`). `space.new {machine}` starts in that machine's home
+   and is named after it; `tab.new` and `pane.split` start in
+   `folderFor(space)`. `terminal.keep` puts a remote terminal in a space of
+   its machine; `terminal.park` takes any. `reconcile`, `orphan`,
+   `startAdoption`, `adopt` judge a machine's terminals once
+   `terminalsKnown` (connected, document read). Layout edits of a machine
+   not connected stay in the window and are saved when it is back (as
+   herdr-app keeps a machine's saves waiting); only terminals refuse.
 4. **Machines in the window.** Sidebar groups, status bar, Settings →
    Machines (with Add from `~/.ssh/config`, the add-in-a-tab path, Rename,
    Remove, Update, Log in), `machine.*` commands, `ls`/`status` fields,

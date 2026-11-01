@@ -104,10 +104,10 @@ func TestArgvOf(t *testing.T) {
 
 func TestLaunchArgv(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
-	if got, _ := launchArgv(args{"task": "x"}); got != nil {
+	if got, _ := launchArgv(args{"task": "x"}, ""); got != nil {
 		t.Errorf("no argv: %v", got)
 	}
-	got, err := launchArgv(args{"argv": `["claude"]`, "task": " fix it "})
+	got, err := launchArgv(args{"argv": `["claude"]`, "task": " fix it "}, "")
 	if err != nil || len(got) < 6 || got[0] != "/bin/zsh" || got[len(got)-2] != "claude" || got[len(got)-1] != "fix it" {
 		t.Errorf("launchArgv = %v, %v", got, err)
 	}
