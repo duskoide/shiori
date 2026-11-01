@@ -3,9 +3,11 @@ package app
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -29,7 +31,7 @@ func (a *App) watchConfig(ctx context.Context) {
 		}
 		return out
 	}
-	last := look()
+	last, lastMods := look(), modsStamp(a.modsDir())
 	t := time.NewTicker(configPoll)
 	defer t.Stop()
 	for {
@@ -41,6 +43,10 @@ func (a *App) watchConfig(ctx context.Context) {
 		if now := look(); now != last {
 			last = now
 			a.post(func() { a.reloadConfig(false) })
+		}
+		if now := modsStamp(a.modsDir()); now != lastMods {
+			lastMods = now
+			a.post(a.reloadMods)
 		}
 	}
 }
@@ -59,6 +65,9 @@ func (a *App) reloadConfig(manual bool) {
 	a.loadSettings()
 	a.loadKeys()
 	settings := !reflect.DeepEqual(oldCfg, a.cfg)
+	if !reflect.DeepEqual(oldCfg.Mods, a.cfg.Mods) {
+		a.reloadMods()
+	}
 	if settings {
 		a.applyTheme()
 		for _, pt := range a.terms {
@@ -68,4 +77,22 @@ func (a *App) reloadConfig(manual bool) {
 	if settings || !bytes.Equal(oldKeys, a.keysRaw) || manual {
 		a.notify("Settings reloaded")
 	}
+}
+
+// modsStamp sums up the mods folder: its folders and their manifests'
+// times and sizes. A change to it reloads the mods.
+func modsStamp(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		b.WriteString(e.Name())
+		if fi, err := os.Stat(filepath.Join(dir, e.Name(), "mod.json")); err == nil {
+			fmt.Fprintf(&b, ":%d:%d", fi.ModTime().UnixNano(), fi.Size())
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
 }

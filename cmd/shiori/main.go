@@ -22,6 +22,7 @@ Usage:
   shiori ls                  spaces, tabs and panes of the open window
   shiori status              connection, focus and overlays of the open window
   shiori commands            every command and its arguments, as JSON
+                             (the open window's, with its mods' commands)
   shiori do <cmd> [--k v ...|'{json}']
                              run a command in the open window
   shiori --version | --help
@@ -51,7 +52,7 @@ func run(argv []string, out io.Writer) error {
 		fmt.Fprintln(out, "shiori", version)
 		return nil
 	case "commands":
-		return printJSON(out, app.Commands())
+		return printJSON(out, app.Commands(home))
 	case "ls":
 		b, err := app.Ls(home)
 		return printReply(out, b, err)

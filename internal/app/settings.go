@@ -28,16 +28,18 @@ var settingsSections = []struct{ id, title, icon string }{
 	{"terminal", "Terminal", "terminal"},
 	{"layout", "Layout", "sidebar"},
 	{"keyboard", "Keyboard", "keyboard"},
+	{"mods", "Mods", "puzzle"},
 	{"files", "Files", "file"},
 }
 
 // settingsState is what the panel keeps while it is open.
 type settingsState struct {
 	section      string
-	font         string // the font field, applied on Enter or Apply
-	fontSeen     string // the font settings.json had as the field last took it
-	query        string // the keyboard page's filter
-	confirmReset bool   // Reset all asks before it removes keys.json
+	font         string          // the font field, applied on Enter or Apply
+	fontSeen     string          // the font settings.json had as the field last took it
+	query        string          // the keyboard page's filter
+	confirmReset bool            // Reset all asks before it removes keys.json
+	logs         map[string]bool // the mods whose logs show
 	rec          *recording
 	// The form adding a binding of any action.
 	addSection, addAction string
@@ -81,6 +83,8 @@ func settingsSectionOf(name string) (string, bool) {
 		return "terminal", true
 	case "sidebar":
 		return "layout", true
+	case "extensions", "plugins", "mod":
+		return "mods", true
 	case "about", "config":
 		return "files", true
 	}
@@ -133,20 +137,34 @@ func (a *App) setSidebar(shown bool) {
 }
 
 // saveKeymap writes km to keys.json and uses it.
+// keys.json holds what differs from the default keys (and the mods'):
+// the chords bound otherwise, and "none" for those removed. When nothing
+// differs, there is no keys.json.
 func (a *App) saveKeymap(km *keys.Keymap) error {
-	b, err := km.Encode()
-	if err == nil {
-		err = os.MkdirAll(a.home, 0o755)
-	}
-	if err == nil {
-		err = os.WriteFile(filepath.Join(a.home, "keys.json"), b, 0o644)
+	user := keys.Diff(a.keysBase, km)
+	path := filepath.Join(a.home, "keys.json")
+	var b []byte
+	var err error
+	if user.Empty() {
+		if err = os.Remove(path); os.IsNotExist(err) {
+			err = nil
+		}
+	} else {
+		b, err = user.Encode()
+		if err == nil {
+			err = os.MkdirAll(a.home, 0o755)
+		}
+		if err == nil {
+			err = os.WriteFile(path, b, 0o644)
+		}
 	}
 	if err != nil {
 		a.notify("keys.json: " + err.Error())
 		return err
 	}
 	// Read back by the watcher, the same bytes are no change.
-	a.keymap, a.keysRaw, a.keysErr = km, b, ""
+	a.keysUser, a.keysRaw, a.keysErr = user, b, ""
+	a.buildKeymap()
 	return nil
 }
 
@@ -176,7 +194,7 @@ func (a *App) bindKey(section string, chord keys.Chord, spec string, replace *ke
 		return err
 	}
 	if had && old.Spec() != act.Spec() {
-		a.notify(fmt.Sprintf("%s now runs %s, no longer %s", chord, actionTitle(section, act.Spec()), actionTitle(section, old.Spec())))
+		a.notify(fmt.Sprintf("%s now runs %s, no longer %s", chord, a.actionTitle(section, act.Spec()), a.actionTitle(section, old.Spec())))
 	}
 	return nil
 }
@@ -198,9 +216,9 @@ func (a *App) resetBinding(section, spec string) {
 	if err != nil {
 		return
 	}
-	for _, c := range keys.Default().ChordsFor(section, spec) {
+	for _, c := range a.keysBase.ChordsFor(section, spec) {
 		if old, had := km.Bind(section, c, act); had && old.Spec() != spec {
-			a.notify(fmt.Sprintf("%s now runs %s, no longer %s", c, actionTitle(section, spec), actionTitle(section, old.Spec())))
+			a.notify(fmt.Sprintf("%s now runs %s, no longer %s", c, a.actionTitle(section, spec), a.actionTitle(section, old.Spec())))
 		}
 	}
 	a.saveKeymap(km)
@@ -228,7 +246,7 @@ var foreignTitles = map[string]string{
 var directionWords = map[string]string{"left": "left", "right": "right", "up": "up", "down": "down"}
 
 // actionTitle names what an action does, for people.
-func actionTitle(section, spec string) string {
+func (a *App) actionTitle(section, spec string) string {
 	act, err := keys.ParseAction(spec)
 	switch {
 	case err != nil:
@@ -241,7 +259,7 @@ func actionTitle(section, spec string) string {
 		}
 		return "Type " + strconv.QuoteToASCII(act.Send)
 	}
-	if c := findCommand(spec); c != nil {
+	if c := a.findCommand(spec); c != nil {
 		return c.Title
 	}
 	switch act.Command {
@@ -270,7 +288,7 @@ func actionTitle(section, spec string) string {
 	if t, ok := foreignTitles[act.Command]; ok {
 		return t
 	}
-	if c := findCommand(act.Command); c != nil {
+	if c := a.findCommand(act.Command); c != nil {
 		if act.Arg != "" {
 			return c.Title + ": " + act.Arg
 		}
@@ -280,7 +298,7 @@ func actionTitle(section, spec string) string {
 }
 
 // actionRuns reports whether this app runs the action.
-func actionRuns(section, spec string) bool {
+func (a *App) actionRuns(section, spec string) bool {
 	act, err := keys.ParseAction(spec)
 	switch {
 	case err != nil:
@@ -290,7 +308,7 @@ func actionRuns(section, spec string) bool {
 	case section != "global":
 		return false // the terminal section's commands are herdr-app's
 	}
-	return findCommand(spec) != nil || findCommand(act.Command) != nil
+	return a.findCommand(spec) != nil || a.findCommand(act.Command) != nil
 }
 
 // bindingGroups names the groups of the global section, by command prefix.
@@ -299,8 +317,11 @@ var bindingGroups = []struct{ prefix, title string }{
 	{"layout", "Window"}, {"mod", "Window"}, {"app", "Window"}, {"window", "Window"},
 }
 
-func groupOf(spec string) string {
+func (a *App) groupOf(spec string) string {
 	act, _ := keys.ParseAction(spec)
+	if c := a.findCommand(act.Command); c != nil && c.Mod != "" {
+		return a.modName(c.Mod) // a mod's commands go under its name
+	}
 	prefix, _, _ := strings.Cut(act.Command, ".")
 	for _, g := range bindingGroups {
 		if g.prefix == prefix {
@@ -318,11 +339,12 @@ type bindingRow struct {
 }
 
 // rank orders actions as the palette does, numbers by value.
-func rank(spec string) (int, string, int) {
+func (a *App) rank(spec string) (int, string, int) {
 	act, _ := keys.ParseAction(spec)
-	i := slices.IndexFunc(commands, func(c *command) bool { return c.Name == spec || c.Name == act.Command })
+	all := a.allCommands()
+	i := slices.IndexFunc(all, func(c *command) bool { return c.Name == spec || c.Name == act.Command })
 	if i < 0 {
-		i = len(commands)
+		i = len(all)
 	}
 	n, err := strconv.Atoi(act.Arg)
 	if err != nil {
@@ -334,7 +356,7 @@ func rank(spec string) (int, string, int) {
 // bindingRows lists the actions of a section: those bound now or by
 // default, and, in the global section, every command of the palette.
 func (a *App) bindingRows(section string) []bindingRow {
-	def := keys.Default()
+	def := a.keysBase
 	specs := map[string]bool{}
 	for _, km := range []*keys.Keymap{def, a.keymap} {
 		for _, act := range km.Sections[section] {
@@ -342,8 +364,9 @@ func (a *App) bindingRows(section string) []bindingRow {
 		}
 	}
 	if section == "global" {
-		for _, c := range commands {
-			if c.hidden || specs[c.Name] {
+		for _, c := range a.allCommands() {
+			// A mod's hidden commands are only out of the palette: keys still run them.
+			if (c.hidden && c.Mod == "") || specs[c.Name] {
 				continue
 			}
 			// An unbound command whose bound form names its value
@@ -359,28 +382,31 @@ func (a *App) bindingRows(section string) []bindingRow {
 	}
 	rows := make([]bindingRow, 0, len(specs))
 	for spec := range specs {
-		r := bindingRow{section: section, spec: spec, title: actionTitle(section, spec), runs: actionRuns(section, spec),
+		r := bindingRow{section: section, spec: spec, title: a.actionTitle(section, spec), runs: a.actionRuns(section, spec),
 			chords: a.keymap.ChordsFor(section, spec), defaults: def.ChordsFor(section, spec)}
 		if section == "global" {
-			r.group = groupOf(spec)
+			r.group = a.groupOf(spec)
 		}
 		rows = append(rows, r)
 	}
 	groupIndex := func(g string) int {
-		for i, x := range []string{"Spaces", "Tabs", "Panes", "Agents", "Window", "Other"} {
+		for i, x := range []string{"Spaces", "Tabs", "Panes", "Agents", "Window"} {
 			if x == g {
 				return i
 			}
 		}
-		return 99
+		if g == "Other" {
+			return 99
+		}
+		return 50 // a mod's, after the app's own
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		gi, gj := groupIndex(rows[i].group), groupIndex(rows[j].group)
 		if gi != gj {
 			return gi < gj
 		}
-		ci, ni, ai := rank(rows[i].spec)
-		cj, nj, aj := rank(rows[j].spec)
+		ci, ni, ai := a.rank(rows[i].spec)
+		cj, nj, aj := a.rank(rows[j].spec)
 		if ci != cj {
 			return ci < cj
 		}
@@ -473,6 +499,8 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 							a.layoutPage(c, k)
 						case "keyboard":
 							a.keyboardPage(c, k)
+						case "mods":
+							a.modsPage(c, k)
 						case "files":
 							a.filesPage(c, k)
 						}
@@ -505,9 +533,9 @@ func (a *App) settingsNav(c *ui.Context, k *colors) {
 			row.Children(func() {
 				ui.Icon(c, glyph(s.icon)).Size(15, 15).TextColor(col)
 				ui.Text(c, s.title).FontSize(13).TextColor(k.foreground)
-				if s.id == "keyboard" && a.keysErr != "" {
+				if (s.id == "keyboard" && a.keysErr != "") || (s.id == "mods" && a.modTrouble() != "") {
 					ui.Spacer(c)
-					ui.Icon(c, glyph("alert")).Size(13, 13).TextColor(k.blocked).Tooltip("keys.json has problems")
+					ui.Icon(c, glyph("alert")).Size(13, 13).TextColor(k.blocked).Tooltip(map[bool]string{true: "keys.json has problems", false: a.modTrouble()}[s.id == "keyboard"])
 				}
 			})
 			if row.Clicked() && !active {
@@ -996,7 +1024,7 @@ func (a *App) addBindingForm(c *ui.Context, k *colors) {
 			rec := a.set.rec
 			adding := rec != nil && rec.section == a.set.addSection && rec.spec == spec && rec.replace == nil && spec != "" && !slices.ContainsFunc(a.bindingRows(rec.section), func(r bindingRow) bool { return r.spec == spec })
 			if adding {
-				a.recorder(c, k, bindingRow{section: rec.section, spec: spec, title: actionTitle(rec.section, spec)})
+				a.recorder(c, k, bindingRow{section: rec.section, spec: spec, title: a.actionTitle(rec.section, spec)})
 			} else if ui.PrimaryButton(c, "Record keys").Disabled(spec == "" || err != nil).Clicked() {
 				a.set.rec = &recording{section: a.set.addSection, spec: spec}
 			}
@@ -1005,8 +1033,8 @@ func (a *App) addBindingForm(c *ui.Context, k *colors) {
 			if _, err := keys.ParseAction(spec); err != nil {
 				ui.Text(c, err.Error()).FontSize(11.5).TextColor(k.blocked)
 			} else {
-				msg, col := actionTitle(a.set.addSection, spec), k.muted
-				if !actionRuns(a.set.addSection, spec) {
+				msg, col := a.actionTitle(a.set.addSection, spec), k.muted
+				if !a.actionRuns(a.set.addSection, spec) {
 					msg, col = msg+": this app does not run it here, herdr-app may", k.dim
 				}
 				ui.Text(c, msg).FontSize(11.5).TextColor(col)
@@ -1072,7 +1100,13 @@ func (a *App) settingsSummary() string {
 	if !a.cfg.sidebarShown() {
 		sidebar = "sidebar hidden"
 	}
-	return fmt.Sprintf("%s theme, %s at %g pt, %s.", themeName, font, a.cfg.fontSize(), sidebar)
+	on := 0
+	for _, m := range a.cfg.Mods {
+		if m.Enabled {
+			on++
+		}
+	}
+	return fmt.Sprintf("%s theme, %s at %g pt, %s, %s on.", themeName, font, a.cfg.fontSize(), sidebar, plural(on, "mod", "mods"))
 }
 
 func (a *App) fileRow(c *ui.Context, k *colors, name, state string) {

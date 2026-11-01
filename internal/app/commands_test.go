@@ -274,7 +274,7 @@ func TestAnswerGivesUp(t *testing.T) {
 	old := answerTimeout
 	answerTimeout = 20 * time.Millisecond
 	defer func() { answerTimeout = old }()
-	r := a.answer(request{Do: "space.new"})
+	r := a.answer(request{Do: "space.new"}, nil)
 	if m, ok := r.(map[string]string); !ok || m["error"] != "the window did not answer" {
 		t.Fatalf("reply = %v", r)
 	}

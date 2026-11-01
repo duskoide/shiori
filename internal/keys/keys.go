@@ -134,6 +134,9 @@ type Action struct {
 	Command, Arg string
 	Send         string
 	Terminal     bool
+	// None removes a default binding: keys.json's "none", which Overlay
+	// applies. A keymap in use holds none.
+	None bool
 }
 
 // ParseAction parses "command", "command:value", "send:<text>" or "terminal".
@@ -141,6 +144,8 @@ func ParseAction(s string) (Action, error) {
 	switch {
 	case s == "terminal":
 		return Action{Terminal: true}, nil
+	case s == "none":
+		return Action{None: true}, nil
 	case strings.HasPrefix(s, "send:"):
 		return Action{Send: s[len("send:"):]}, nil
 	case strings.TrimSpace(s) == "":
@@ -238,7 +243,7 @@ func (k *Keymap) KeysFor(command string) []string {
 	for _, s := range sections {
 		var here []string
 		for c, a := range k.Sections[s] {
-			if a.Terminal || a.Send != "" || a.Command != name || (withArg && a.Arg != arg) {
+			if a.Terminal || a.None || a.Send != "" || a.Command != name || (withArg && a.Arg != arg) {
 				continue
 			}
 			here = append(here, c.String())
@@ -275,6 +280,8 @@ func (c Chord) Spec() string {
 // "send:<text>", "command" or "command:arg". ParseAction reads it back.
 func (a Action) Spec() string {
 	switch {
+	case a.None:
+		return "none"
 	case a.Terminal:
 		return "terminal"
 	case a.Command == "":
@@ -353,4 +360,71 @@ func (k *Keymap) ChordsFor(section, spec string) []Chord {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
 	return out
+}
+
+// Overlay applies over to k: its bindings replace k's, and its "none"
+// bindings remove k's.
+func (k *Keymap) Overlay(over *Keymap) {
+	for s, m := range over.Sections {
+		for c, a := range m {
+			if a.None {
+				k.Unbind(s, c)
+			} else {
+				k.Bind(s, c, a)
+			}
+		}
+	}
+}
+
+// AddFree adds the bindings of other whose chords k does not bind, and
+// returns, by section, the chords it left out because k had them.
+func (k *Keymap) AddFree(other *Keymap) map[string][]Chord {
+	taken := map[string][]Chord{}
+	for s, m := range other.Sections {
+		for c, a := range m {
+			if _, ok := k.Sections[s][c]; ok {
+				taken[s] = append(taken[s], c)
+				continue
+			}
+			k.Bind(s, c, a)
+		}
+		sort.Slice(taken[s], func(i, j int) bool { return taken[s][i].String() < taken[s][j].String() })
+	}
+	for s, cs := range taken {
+		if len(cs) == 0 {
+			delete(taken, s)
+		}
+	}
+	return taken
+}
+
+// Diff is what turns base into target when applied with Overlay: the
+// bindings target adds or changes, and "none" for those it lacks.
+func Diff(base, target *Keymap) *Keymap {
+	out := &Keymap{Sections: map[string]map[Chord]Action{}}
+	for s, m := range target.Sections {
+		for c, a := range m {
+			if b, ok := base.Sections[s][c]; !ok || b != a {
+				out.Bind(s, c, a)
+			}
+		}
+	}
+	for s, m := range base.Sections {
+		for c := range m {
+			if _, ok := target.Sections[s][c]; !ok {
+				out.Bind(s, c, Action{None: true})
+			}
+		}
+	}
+	return out
+}
+
+// Empty reports whether the keymap binds nothing.
+func (k *Keymap) Empty() bool {
+	for _, m := range k.Sections {
+		if len(m) > 0 {
+			return false
+		}
+	}
+	return true
 }

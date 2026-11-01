@@ -24,11 +24,12 @@ const maxRequest = 1 << 20
 
 // request is a line sent to the control socket.
 type request struct {
-	Ls     bool           `json:"ls,omitempty"`
-	Status bool           `json:"status,omitempty"`
-	Do     string         `json:"do,omitempty"`
-	Args   map[string]any `json:"args,omitempty"`
-	Raise  bool           `json:"raise,omitempty"`
+	Ls       bool           `json:"ls,omitempty"`
+	Status   bool           `json:"status,omitempty"`
+	Commands bool           `json:"commands,omitempty"`
+	Do       string         `json:"do,omitempty"`
+	Args     map[string]any `json:"args,omitempty"`
+	Raise    bool           `json:"raise,omitempty"`
 }
 
 func socketPath(home string) string { return filepath.Join(home, "shiori.sock") }
@@ -68,11 +69,28 @@ func (a *App) listen() (net.Listener, error) {
 	return l, nil
 }
 
+// readLine reads a line, at most maxRequest+1 bytes of it.
+func readLine(r *bufio.Reader) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > maxRequest || err != bufio.ErrBufferFull {
+			return line, err
+		}
+	}
+}
+
 func (a *App) serve(conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
-	line, err := bufio.NewReader(io.LimitReader(conn, maxRequest+1)).ReadBytes('\n')
+	r := bufio.NewReader(conn)
+	line, err := readLine(r)
 	if err != nil && len(line) == 0 {
+		return
+	}
+	if len(line) <= maxRequest && isRPC(line) {
+		a.runSession(conn, r, line)
 		return
 	}
 	var req request
@@ -82,14 +100,46 @@ func (a *App) serve(conn net.Conn) {
 	} else if err := json.Unmarshal(line, &req); err != nil {
 		reply = map[string]string{"error": "bad request: " + err.Error()}
 	} else {
-		reply = a.answer(req)
+		// A client that hangs up cancels what waits for it, as a dialog.
+		gone := make(chan struct{})
+		go func() {
+			io.Copy(io.Discard, conn)
+			close(gone)
+		}()
+		conn.SetDeadline(time.Time{})
+		reply = a.answer(req, gone)
+		conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	}
 	b, _ := json.Marshal(reply)
 	conn.Write(append(b, '\n'))
 }
 
-// answer runs a request on the main thread and waits for its reply.
-func (a *App) answer(req request) any {
+// answer runs a request on the main thread and waits for its reply, and
+// for a command that answers later, for that, until gone closes.
+func (a *App) answer(req request, gone <-chan struct{}) any {
+	r := a.onMain(func() any { return a.handle(req) })
+	d, ok := r.(*deferred)
+	if !ok {
+		return r
+	}
+	v, err := a.await(d, gone)
+	return replyOf(v, err)
+}
+
+// replyOf is a command's result as the socket sends it.
+func replyOf(v any, err error) any {
+	if err != nil {
+		return map[string]string{"error": err.Error()}
+	}
+	if v == nil {
+		return map[string]bool{"ok": true}
+	}
+	return v
+}
+
+// onMain runs fn on the main thread and waits for what it returns, at
+// most answerTimeout.
+func (a *App) onMain(fn func() any) any {
 	const (
 		waiting = iota
 		running
@@ -102,7 +152,7 @@ func (a *App) answer(req request) any {
 		if !state.CompareAndSwap(waiting, running) {
 			return
 		}
-		out <- a.handle(req)
+		out <- fn()
 	})
 	select {
 	case r := <-out:
@@ -128,15 +178,14 @@ func (a *App) handle(req request) any {
 		return a.ls()
 	case req.Status:
 		return a.statusReport()
+	case req.Commands:
+		return a.allCommands()
 	case req.Do != "":
 		r, err := a.do(req.Do, req.Args)
-		if err != nil {
-			return map[string]string{"error": err.Error()}
+		if d, ok := r.(*deferred); ok && err == nil {
+			return d
 		}
-		if r == nil {
-			r = map[string]bool{"ok": true}
-		}
-		return r
+		return replyOf(r, err)
 	}
 	return map[string]string{"error": "empty request"}
 }
@@ -235,7 +284,12 @@ func ask(home string, req request) (json.RawMessage, error) {
 		return nil, fmt.Errorf("no shiori window is running (%s)", home)
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(15 * time.Second))
+	// A command may wait for the person, as app.ask does.
+	limit := 15 * time.Second
+	if req.Do != "" {
+		limit = maxWait + time.Minute
+	}
+	conn.SetDeadline(time.Now().Add(limit))
 	b, _ := json.Marshal(req)
 	if _, err := conn.Write(append(b, '\n')); err != nil {
 		return nil, err

@@ -219,3 +219,45 @@ func TestBindUnbindChordsFor(t *testing.T) {
 		t.Fatal("an empty keymap had a binding")
 	}
 }
+
+func TestOverlayAddFreeDiff(t *testing.T) {
+	base := Default()
+	mod := &Keymap{}
+	mod.Bind("global", Chord{Ctrl: true, Alt: true, Key: "g"}, Action{Command: "git.branch"})
+	mod.Bind("global", Chord{Ctrl: true, Shift: true, Key: "t"}, Action{Command: "git.tab"}) // taken
+	taken := base.AddFree(mod)
+	if len(taken["global"]) != 1 || taken["global"][0].String() != "Ctrl+Shift+T" {
+		t.Fatalf("taken %v", taken)
+	}
+	if got := base.KeysFor("git.branch"); len(got) != 1 {
+		t.Fatalf("git keys %v", got)
+	}
+
+	user, err := Parse([]byte(`{"global":{"ctrl-shift-t":"none","ctrl-alt-n":"tab.new","ctrl-alt-g":"none"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff := base.Clone()
+	eff.Overlay(user)
+	if got := eff.KeysFor("tab.new"); len(got) != 1 || got[0] != "Ctrl+Alt+N" {
+		t.Fatalf("tab.new %v", got)
+	}
+	if len(eff.KeysFor("git.branch")) != 0 {
+		t.Fatal("none kept a mod's key")
+	}
+	d := Diff(base, eff)
+	if !reflect.DeepEqual(d, user) {
+		t.Fatalf("diff %v\nwant %v", d.Sections, user.Sections)
+	}
+	again := base.Clone()
+	again.Overlay(d)
+	if !reflect.DeepEqual(again, eff) {
+		t.Fatal("base with the diff is not the target")
+	}
+	if !Diff(base, base.Clone()).Empty() || (&Keymap{}).Empty() == false {
+		t.Fatal("empty")
+	}
+	if a, _ := ParseAction("none"); !a.None || a.Spec() != "none" {
+		t.Fatalf("none %+v", a)
+	}
+}

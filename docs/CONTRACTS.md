@@ -156,4 +156,25 @@ func (k *Keymap) Encode() ([]byte, error)       // a keys.json document, sorted;
 func (k *Keymap) Bind(section string, c Chord, a Action) (old Action, had bool)
 func (k *Keymap) Unbind(section string, c Chord) bool
 func (k *Keymap) ChordsFor(section, spec string) []Chord
+// Action.None is keys.json's "none": Overlay removes the binding.
+func (k *Keymap) Overlay(over *Keymap)          // over's bindings replace k's; its "none" remove them
+func (k *Keymap) AddFree(other *Keymap) map[string][]Chord // adds other's bindings on free chords; returns those taken
+func Diff(base, target *Keymap) *Keymap         // base.Overlay(Diff(base, target)) == target
+func (k *Keymap) Empty() bool
+```
+
+## internal/mods
+
+Mods' manifests (docs/MODS.md). UI-agnostic; the app runs the programs.
+
+```go
+const API = 1
+type Manifest struct { API int; Name, Version, Description string; Run []string; Start string; Commands []Command; Keys map[string]map[string]string; Events []string }
+type Command struct { Name, Title, About string; Args []Arg; Run []string; Timeout float64; Hidden bool }
+type Mod struct { ID, Dir string; Manifest *Manifest; Hash string; Err error } // Hash: "sha256:<hex>" of mod.json
+func Load(dir string, events []string) []Mod     // every folder of dir, by id; a missing dir is none
+func Parse(id string, b []byte, events []string) (*Manifest, error) // strict: unknown fields are errors
+func (m *Manifest) Keymap(id string) (*keys.Keymap, error) // its default keys; its own commands only
+func Resolve(dir string, argv []string) []string // "./x" in the mod's folder
+func ValidID(id string) bool
 ```

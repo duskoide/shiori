@@ -97,6 +97,18 @@ type App struct {
 	terms map[string]*paneTerm // by terminal address
 	retry map[string]time.Time // terminals not to attach again before then
 
+	// Commands besides the app's own (the mods'), and the replies still
+	// waiting for an answer that can be cancelled.
+	extra   []*command
+	waiting map[*deferred]bool
+	dialogs []*queuedDialog // the dialog commands' dialogs, in line
+
+	// The control socket's sessions, and the state events are worked out
+	// from (see events.go).
+	sessions map[*rpcSession]bool
+	snap     *stateSnap
+	eventSeq uint64
+
 	// Overlays.
 	palette  paletteState
 	prompt   *promptState
@@ -105,12 +117,22 @@ type App struct {
 	set      settingsState // the settings panel's own state
 	toasts   []toast
 
-	keymap   *keys.Keymap
-	keysRaw  []byte // keys.json as last read, to tell a change from a rewrite
-	keysErr  string // what was wrong with keys.json as last read
-	cfg      Settings
-	k        *colors
-	sidebarW float32
+	keymap  *keys.Keymap
+	keysRaw []byte // keys.json as last read, to tell a change from a rewrite
+	keysErr string // what was wrong with keys.json as last read
+	// The keymap in use is keysBase (the default keys and the mods') with
+	// keysUser (keys.json) over it.
+	keysBase, keysUser *keys.Keymap
+
+	// The mods folder as last read, by id and in order, and the new or
+	// changed mods already told of.
+	mods       map[string]*modState
+	started    bool // start ran: services may start
+	modOrder   []string
+	modNoticed map[string]bool
+	cfg        Settings
+	k          *colors
+	sidebarW   float32
 }
 
 // Settings are the person's preferences, settings.json in the app's home.
@@ -119,6 +141,8 @@ type Settings struct {
 	Font     string  `json:"font,omitempty"`
 	FontSize float32 `json:"font_size,omitempty"`
 	Sidebar  *bool   `json:"sidebar,omitempty"`
+	// Mods are the mods turned on or off, by id.
+	Mods map[string]ModSetting `json:"mods,omitempty"`
 }
 
 // The terminals' text size: the default, and the range it keeps to.
@@ -142,25 +166,30 @@ func (s Settings) sidebarShown() bool { return s.Sidebar == nil || *s.Sidebar }
 // newApp makes the app's state, its settings and keys read from home.
 func newApp(home, session string) *App {
 	a := &App{
-		home:      home,
-		session:   session,
-		focused:   true,
-		terminals: map[string]core.Terminal{},
-		pending:   map[string]time.Time{},
-		spawning:  map[string]int{},
-		gone:      map[string]bool{},
-		seenTurns: map[string]uint64{},
-		seenBusy:  map[string]time.Time{},
-		activeTab: map[string]string{},
-		focus:     map[string]string{},
-		history:   map[string][]string{},
-		zoomed:    map[string]string{},
-		localSeen: map[string]bool{},
-		terms:     map[string]*paneTerm{},
-		retry:     map[string]time.Time{},
-		sidebarW:  sidebarWidth,
+		home:       home,
+		session:    session,
+		focused:    true,
+		terminals:  map[string]core.Terminal{},
+		pending:    map[string]time.Time{},
+		spawning:   map[string]int{},
+		gone:       map[string]bool{},
+		seenTurns:  map[string]uint64{},
+		seenBusy:   map[string]time.Time{},
+		activeTab:  map[string]string{},
+		focus:      map[string]string{},
+		history:    map[string][]string{},
+		zoomed:     map[string]string{},
+		localSeen:  map[string]bool{},
+		terms:      map[string]*paneTerm{},
+		retry:      map[string]time.Time{},
+		waiting:    map[*deferred]bool{},
+		sessions:   map[*rpcSession]bool{},
+		mods:       map[string]*modState{},
+		modNoticed: map[string]bool{},
+		sidebarW:   sidebarWidth,
 	}
 	a.loadSettings()
+	a.reloadMods()
 	a.loadKeys()
 	a.applyTheme()
 	return a
@@ -229,21 +258,21 @@ func (a *App) saveSettings() {
 }
 
 // loadKeys reads keys.json from home over the default keys.
+// keys.json changes the default keys (and the mods'): it binds chords
+// anew, and "none" removes a binding.
 func (a *App) loadKeys() {
-	prev := a.keymap
-	a.keymap = keys.Default()
+	defer a.buildKeymap()
 	b, err := os.ReadFile(filepath.Join(a.home, "keys.json"))
 	a.keysRaw, a.keysErr = b, ""
 	if err != nil {
+		a.keysUser = nil
 		return
 	}
 	km, err := keys.Parse(b)
 	if km != nil {
 		// The keymap holds the valid bindings even when others failed.
-		a.keymap = km
-	} else if prev != nil {
-		a.keymap = prev // a file that cannot be read at all keeps the keys in use
-	}
+		a.keysUser = km
+	} // a file that cannot be read at all keeps the keys in use
 	if err != nil {
 		a.keysErr = err.Error()
 		a.notify("keys.json: " + err.Error())
@@ -369,12 +398,28 @@ func (a *App) runGuarded(fn func()) {
 // toast is a short message over the window.
 type toast struct {
 	text  string
+	level level
 	until time.Time
 }
 
+// level is how a toast looks: news, or something that went wrong.
+type level int
+
+const (
+	levelInfo level = iota
+	levelError
+)
+
 // notify shows a message for a few seconds.
-func (a *App) notify(text string) {
-	a.toasts = append(a.toasts, toast{text: text, until: time.Now().Add(5 * time.Second)})
+func (a *App) notify(text string) { a.notifyLevel(text, levelInfo) }
+
+// notifyLevel shows a message for a few seconds, an error for longer.
+func (a *App) notifyLevel(text string, lv level) {
+	d := 5 * time.Second
+	if lv == levelError {
+		d = 8 * time.Second
+	}
+	a.toasts = append(a.toasts, toast{text: text, level: lv, until: time.Now().Add(d)})
 	if len(a.toasts) > 4 {
 		a.toasts = a.toasts[len(a.toasts)-4:]
 	}
