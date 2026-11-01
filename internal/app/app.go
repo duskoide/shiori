@@ -127,6 +127,7 @@ type App struct {
 	// The mods folder as last read, by id and in order, and the new or
 	// changed mods already told of.
 	mods       map[string]*modState
+	started    bool // start ran: services may start
 	modOrder   []string
 	modNoticed map[string]bool
 	cfg        Settings

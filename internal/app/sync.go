@@ -16,6 +16,8 @@ import (
 func (a *App) start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.stop = cancel
+	a.started = true
+	a.startServices()
 	go a.connectLoop(ctx)
 	go a.watchConfig(ctx)
 }
@@ -24,6 +26,7 @@ func (a *App) start() {
 // terminals keep running in the core.
 func (a *App) shutdown() {
 	a.cancelWaiting()
+	a.stopServices()
 	a.flushSettings()
 	a.drain()
 	if a.stop != nil {
