@@ -23,7 +23,6 @@ const (
 	changesWidth    = 300
 	changesMin      = 220
 	changesMax      = 640
-	changesMaxRows  = 500
 	changesFreshFor = 10 * time.Second // how long a change counts as new
 )
 
@@ -33,6 +32,7 @@ type changesState struct {
 	snap  changes.Snapshot
 	have  bool    // snap is the watched folder's
 	width float32 // the panel's width, 0 for the first
+	list  ui.ListState
 }
 
 func (s Settings) changesShown() bool { return s.Changes != nil && *s.Changes }
@@ -64,6 +64,8 @@ func (a *App) syncChanges() {
 		want = a.changesFolder()
 	}
 	if a.chg.w != nil && a.chg.w.Folder() == want {
+		// Nobody looks at it while the window is in the background.
+		a.chg.w.SetIdle(!a.focused)
 		return
 	}
 	a.stopChanges()
@@ -195,21 +197,20 @@ func changesNote(c *ui.Context, k *colors, title, detail string) {
 	})
 }
 
+// changesList builds the rows in view alone: a long list costs a frame no
+// more than a short one.
 func (a *App) changesList(c *ui.Context, k *colors, snap changes.Snapshot) {
 	now := time.Now()
 	files := snap.Files
-	more := 0
-	if len(files) > changesMaxRows {
-		files, more = files[:changesMaxRows], len(files)-changesMaxRows
+	a.chg.list.Key = func(i int) any {
+		if i < len(files) {
+			return files[i].Path
+		}
+		return i
 	}
-	ui.Scroll(c.Key("changes:"+snap.Folder)).Grow(1).MinHeight(0).Padding(4, 6).Gap(1).Children(func() {
-		for _, f := range files {
-			a.changeRow(c, k, snap, f, now)
-		}
-		if more > 0 {
-			ui.Textf(c, "and %d more", more).FontSize(11.5).TextColor(k.dim).Padding(6, 8)
-		}
-	})
+	ui.List(c.Key("changes:"+snap.Folder), &a.chg.list, len(files), func(i int) {
+		a.changeRow(c, k, snap, files[i], now)
+	}).Grow(1).MinHeight(0).Padding(4, 6)
 }
 
 func (a *App) changeRow(c *ui.Context, k *colors, snap changes.Snapshot, f changes.File, now time.Time) {

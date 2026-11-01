@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -58,7 +59,9 @@ type Snapshot struct {
 	Files     []File // most recent first
 	Truncated bool   // the folder had more files than a walk looks at
 	Err       error
-	Took      time.Duration
+	// Took is what the scan cost: its time, or the CPU time git took
+	// when that was more (git works on several cores at once).
+	Took time.Duration
 }
 
 // Since is how long ago a file last changed, as the list shows it.
@@ -116,7 +119,9 @@ func Scan(ctx context.Context, folder string, prev *Snapshot, opt Options) Snaps
 	if !opt.NoGit {
 		if root, ok := gitRoot(ctx, folder); ok {
 			s.Git, s.Root = true, root
-			s.Files, s.Err = gitScan(ctx, folder, root, prev)
+			var cpu time.Duration
+			s.Files, cpu, s.Err = gitScan(ctx, folder, root, prev)
+			defer func() { s.Took = max(s.Took, cpu) }()
 		}
 	}
 	if !s.Git {
@@ -152,14 +157,19 @@ func gitCmd(ctx context.Context, dir string, args ...string) *exec.Cmd {
 }
 
 // gitScan lists what git status says changed under folder.
-func gitScan(ctx context.Context, folder, root string, prev *Snapshot) ([]File, error) {
-	out, err := gitCmd(ctx, folder, "status", "--porcelain=v1", "-z", "--untracked-files=all").Output()
+func gitScan(ctx context.Context, folder, root string, prev *Snapshot) ([]File, time.Duration, error) {
+	cmd := gitCmd(ctx, folder, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	out, err := cmd.Output()
+	var cpu time.Duration
+	if ps := cmd.ProcessState; ps != nil {
+		cpu = ps.UserTime() + ps.SystemTime()
+	}
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
-			return nil, errors.New("git status: " + strings.TrimSpace(string(ee.Stderr)))
+			return nil, cpu, errors.New("git status: " + strings.TrimSpace(string(ee.Stderr)))
 		}
-		return nil, err
+		return nil, cpu, err
 	}
 	// Paths come relative to the root; the list is of the folder's.
 	realFolder, err := filepath.EvalSymlinks(folder)
@@ -224,7 +234,7 @@ func gitScan(ctx context.Context, folder, root string, prev *Snapshot) ([]File, 
 		}
 		files = append(files, f)
 	}
-	return files, nil
+	return files, cpu, nil
 }
 
 // missedSince is when a file was first seen gone: in the scan before, or
@@ -331,11 +341,31 @@ type Watcher struct {
 	stop   context.CancelFunc
 	once   sync.Once
 	kick   chan struct{}
+	idle   atomic.Bool
 }
 
-// Interval is how often a Watcher scans, at least: a slow scan waits five
-// times as long as it took, so that a big folder costs little.
+// Interval is how often a Watcher scans, at least.
 var Interval = 2 * time.Second
+
+// costFactor is how many times as long as a scan cost a Watcher waits
+// before the next: a slow folder takes some 5% of one core at most.
+const costFactor = 30
+
+// idleFactor slows a Watcher down while nobody looks (SetIdle), to
+// idleInterval at least.
+const (
+	idleFactor   = 5
+	idleInterval = 10 * time.Second
+)
+
+// nextWait is how long a Watcher waits after a scan that took took.
+func nextWait(interval, took time.Duration, idle bool) time.Duration {
+	wait := max(interval, costFactor*took)
+	if idle {
+		wait = max(idleFactor*wait, idleInterval)
+	}
+	return wait
+}
 
 // Watch starts watching folder. changed runs on the Watcher's goroutine
 // with every scan that differs from the last, the first included.
@@ -356,7 +386,7 @@ func Watch(folder string, opt Options, changed func(Snapshot)) *Watcher {
 				changed(s)
 			}
 			last = &s
-			wait := max(interval, 5*s.Took)
+			wait := nextWait(interval, s.Took, w.idle.Load())
 			select {
 			case <-ctx.Done():
 				return
@@ -376,6 +406,14 @@ func (w *Watcher) Refresh() {
 	select {
 	case w.kick <- struct{}{}:
 	default:
+	}
+}
+
+// SetIdle slows the Watcher down while nobody looks at what it finds, as
+// when the window is in the background. Looked at again, it scans at once.
+func (w *Watcher) SetIdle(idle bool) {
+	if w.idle.Swap(idle) && !idle {
+		w.Refresh()
 	}
 }
 

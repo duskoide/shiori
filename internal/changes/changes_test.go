@@ -168,3 +168,39 @@ func TestSince(t *testing.T) {
 		}
 	}
 }
+
+func TestNextWait(t *testing.T) {
+	for _, tc := range []struct {
+		took time.Duration
+		idle bool
+		want time.Duration
+	}{
+		{5 * time.Millisecond, false, 2 * time.Second},
+		{150 * time.Millisecond, false, 4500 * time.Millisecond},
+		{5 * time.Millisecond, true, 10 * time.Second},
+		{150 * time.Millisecond, true, 22500 * time.Millisecond},
+	} {
+		if got := nextWait(2*time.Second, tc.took, tc.idle); got != tc.want {
+			t.Errorf("took %s idle %v: %s, want %s", tc.took, tc.idle, got, tc.want)
+		}
+	}
+}
+
+func TestWatcherLookedAtAgainScansAtOnce(t *testing.T) {
+	dir := t.TempDir()
+	got := make(chan Snapshot, 10)
+	w := Watch(dir, Options{NoGit: true}, func(s Snapshot) { got <- s })
+	defer w.Stop()
+	<-got
+	w.SetIdle(true)
+	write(t, dir, "x.txt", "x")
+	w.SetIdle(false)
+	select {
+	case s := <-got:
+		if kinds(s) != "M x.txt" {
+			t.Fatalf("%s", kinds(s))
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no scan on coming back")
+	}
+}
