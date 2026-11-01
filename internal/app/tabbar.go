@@ -170,23 +170,6 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 	ui.Row(c).Height(statusHeight).Padding(0, 12).Gap(14).AlignItems(ui.Center).Shrink(0).
 		Background(k.chrome).BorderWidth(1, 0, 0, 0).BorderColor(k.border).Children(func() {
 		a.statusMachine(c, k)
-		if len(a.machines) > 0 {
-			var tips []string
-			row := ui.Row(c).Gap(5).AlignItems(ui.Center).Shrink(0).Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Machines")
-			row.Children(func() {
-				ui.Icon(c, glyph("server")).Size(13, 13).TextColor(k.muted)
-				for _, m := range a.machines {
-					ui.Box(c.Key("mdot:"+m.Name)).Size(6, 6).Radius(3).Background(machineDot(k, m))
-					word, _ := machineWord(m)
-					tips = append(tips, m.Name+": "+word)
-				}
-				ui.Text(c, plural(len(a.machines), "machine", "machines")).FontSize(11.5).TextColor(k.muted).SingleLine()
-			})
-			row.Tooltip(strings.Join(tips, "\n"))
-			if row.Clicked() {
-				a.post(func() { a.openSettings("machines") })
-			}
-		}
 		list := a.agents()
 		if len(list) > 0 {
 			var waiting []string // the panes of the agents that need the person
