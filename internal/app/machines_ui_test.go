@@ -293,3 +293,30 @@ func TestPathsOfMachines(t *testing.T) {
 		t.Fatal(env)
 	}
 }
+
+// The status bar names the machine of the shown space, and its state.
+func TestStatusBarFollowsTheSpacesMachine(t *testing.T) {
+	a, f := machineApp(t)
+	a.activeSpace = "s1"
+	tt := uxTester(a)
+	if !tt.HasText("Machine of the space This computer") {
+		t.Fatal(tt.Texts())
+	}
+	a.activeSpace = "mac/sp9"
+	settle(tt)
+	if !tt.HasText("Machine of the space mac") || tt.HasText("Machine of the space This computer") {
+		t.Fatal(tt.Texts())
+	}
+	f.machines[0].State = "connecting"
+	ms, _ := f.Machines(nil)
+	a.setMachines(ms)
+	settle(tt)
+	if !tt.HasText("mac · reconnecting") {
+		t.Fatal(tt.Texts())
+	}
+	shot(t, tt, "status-machine")
+	mustClick(t, tt, "Machine of the space mac · reconnecting")
+	if !a.settings || a.set.section != "machines" {
+		t.Fatal("the machines page did not open")
+	}
+}

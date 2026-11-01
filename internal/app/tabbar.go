@@ -169,19 +169,7 @@ func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layou
 func (a *App) statusBar(c *ui.Context, k *colors) {
 	ui.Row(c).Height(statusHeight).Padding(0, 12).Gap(14).AlignItems(ui.Center).Shrink(0).
 		Background(k.chrome).BorderWidth(1, 0, 0, 0).BorderColor(k.border).Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
-			dot := k.done
-			if !a.connected {
-				dot = k.blocked
-			}
-			ui.Box(c).Size(6, 6).Radius(3).Background(dot)
-			ui.Icon(c, glyph("monitor")).Size(13, 13).TextColor(k.muted)
-			name := "This computer"
-			if !a.connected {
-				name += " · disconnected"
-			}
-			ui.Text(c, name).FontSize(11.5).TextColor(k.muted).SingleLine()
-		})
+		a.statusMachine(c, k)
 		if len(a.machines) > 0 {
 			var tips []string
 			row := ui.Row(c).Gap(5).AlignItems(ui.Center).Shrink(0).Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Machines")
@@ -245,5 +233,48 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 				a.post(func() { a.doAction("app.palette", "") })
 			}
 		}
+	})
+}
+
+// statusMachine is the machine of the shown space, as herdr-app's status
+// bar has it: its name and state, "This computer" for this one's.
+func (a *App) statusMachine(c *ui.Context, k *colors) {
+	here := ""
+	if s := a.space(); s != nil {
+		here = s.Machine
+	}
+	dot, icon, name, tip := k.done, "monitor", "This computer", ""
+	if here != "" {
+		icon, name = "server", here
+		if m, ok := a.machine(here); ok {
+			word, _ := machineWord(m)
+			dot, tip = machineDot(k, m), word
+			if !m.Usable() {
+				name += " · " + strings.ToLower(word)
+				if m.Why != "" {
+					tip += ": " + m.Why
+				}
+			}
+		} else {
+			dot, name = k.dim, name+" · not listed"
+		}
+	}
+	if !a.connected {
+		dot, name, tip = k.blocked, name+" · disconnected", a.connErr
+	}
+	row := ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Label("Machine of the space " + name)
+	if tip != "" {
+		row.Tooltip(tip)
+	}
+	if here != "" {
+		row.Cursor(ui.CursorPointer).Role(ui.RoleButton)
+		if row.Clicked() {
+			a.post(func() { a.openSettings("machines") })
+		}
+	}
+	row.Children(func() {
+		ui.Box(c).Size(6, 6).Radius(3).Background(dot)
+		ui.Icon(c, glyph(icon)).Size(13, 13).TextColor(k.muted)
+		ui.Text(c, name).FontSize(11.5).TextColor(k.muted).SingleLine()
 	})
 }
