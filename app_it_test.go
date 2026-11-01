@@ -20,7 +20,9 @@ func TestIntegration(t *testing.T) {
 	if os.Getenv("HERDR_MYGO_IT") != "1" {
 		t.Skip("set HERDR_MYGO_IT=1 to run against a real herdr-core")
 	}
-	for _, k := range []string{"HC_SOCKET", "HC_TERMINAL_SOCKET", "HC_TERMINAL_ID", "HC_SCOPE"} {
+	// LD_LIBRARY_PATH may point the test binary at system GUI libraries;
+	// the loader has read it already, and the core's shells must not see it.
+	for _, k := range []string{"HC_SOCKET", "HC_TERMINAL_SOCKET", "HC_TERMINAL_ID", "HC_SCOPE", "LD_LIBRARY_PATH"} {
 		t.Setenv(k, "")
 		os.Unsetenv(k)
 	}
@@ -90,6 +92,20 @@ func TestIntegration(t *testing.T) {
 	waitFor(t, tt, "a prompt", func() bool { return strings.TrimSpace(pt2.term.Text()) != "" })
 	pt2.term.Send([]byte("exit\r"))
 	waitFor(t, tt, "the exited pane closed", func() bool { return a.tab() != nil && len(a.tab().Panes()) == before-1 })
+
+	// Agents report their status (OSC 7501) and show in the sidebar.
+	report := func(pt *paneTerm, state string) {
+		pt.term.Send([]byte(`printf '\033]7501;state=` + state + `:app=claude\033\\'` + "\r"))
+	}
+	agentPt := a.terms[a.pane().Content.Terminal]
+	report(agentPt, "working")
+	waitFor(t, tt, "a working agent", func() bool { l := a.agents(); return len(l) == 1 && l[0].word.String() == "working" })
+	report(agentPt, "blocked")
+	waitFor(t, tt, "a blocked agent", func() bool { return tt.HasText("Needs you") })
+	settle(tt)
+	shot(t, tt, "05-agents")
+	report(agentPt, "done")
+	waitFor(t, tt, "the agent done", func() bool { l := a.agents(); return len(l) == 1 && l[0].word.String() != "blocked" })
 
 	a.openPalette("split")
 	settle(tt)
