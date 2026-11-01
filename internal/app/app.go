@@ -35,6 +35,7 @@ type backend interface {
 	Get(ctx context.Context, address string) (core.Terminal, error)
 	DocSet(ctx context.Context, name, on string, version uint64, value json.RawMessage) (uint64, error)
 	DocGet(ctx context.Context, name, on string) (json.RawMessage, uint64, error)
+	Machines(ctx context.Context) ([]core.Machine, error)
 }
 
 // App is the window's state. Everything in it belongs to the main thread:
@@ -68,15 +69,13 @@ type App struct {
 	// The core's terminals, as its event stream describes them.
 	terminals map[string]core.Terminal
 
-	// The layout document: doc is what the window shows, base the last
-	// version the core has, of number version.
+	// The layout: doc is what the window shows, every machine's spaces
+	// (see layout/machines.go), and docs each machine's document's sync
+	// ("" this one's). machines are the core's machines, temporary ones
+	// left out, by name.
 	doc       *layout.Document
-	base      *layout.Document
-	version   uint64
-	loaded    bool
-	saving    bool
-	dirty     bool
-	refetch   bool // a newer document arrived while a save was in flight
+	docs      map[string]*docSync
+	machines  []core.Machine
 	dragging  bool
 	pending   map[string]time.Time // terminals started here, not yet in a pane
 	spawning  map[string]int       // tabs whose terminals are starting here
@@ -183,6 +182,7 @@ func newApp(home, session string) *App {
 		session:    session,
 		focused:    true,
 		terminals:  map[string]core.Terminal{},
+		docs:       map[string]*docSync{"": {}},
 		pending:    map[string]time.Time{},
 		spawning:   map[string]int{},
 		gone:       map[string]bool{},

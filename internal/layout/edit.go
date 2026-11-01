@@ -116,7 +116,7 @@ func (t *Tab) Split(paneID string, dir Direction, terminal string) (*Node, error
 	if pane == nil || pane.Type != TypeBlock {
 		return nil, fmt.Errorf("layout: pane %q not found", paneID)
 	}
-	nb := &Node{ID: NewID("p"), Type: TypeBlock, Content: &Content{Terminal: terminal}}
+	nb := &Node{ID: NewIDOn(MachineOf(t.ID), "p"), Type: TypeBlock, Content: &Content{Terminal: terminal}}
 	if parent == nil {
 		// A block root (other apps may write one) becomes the first child
 		// of a new root container.
@@ -125,7 +125,7 @@ func (t *Tab) Split(paneID string, dir Direction, terminal string) (*Node, error
 		if !dir.after() {
 			kids[0], kids[1] = nb, pane
 		}
-		t.Root = &Node{ID: NewID("c"), Type: dir.containerType(), Children: kids}
+		t.Root = &Node{ID: NewIDOn(MachineOf(t.ID), "c"), Type: dir.containerType(), Children: kids}
 		return nb, nil
 	}
 	i := indexOf(parent, pane)
@@ -145,7 +145,7 @@ func (t *Tab) Split(paneID string, dir Direction, terminal string) (*Node, error
 		parent.Children = insertAt(parent.Children, i, nb)
 		return nb, nil
 	}
-	wrap := &Node{ID: NewID("c"), Type: dir.containerType(), Size: pane.Size}
+	wrap := &Node{ID: NewIDOn(MachineOf(t.ID), "c"), Type: dir.containerType(), Size: pane.Size}
 	if parent.Type == TypeStack && stackActive(parent) == pane.ID {
 		setStackActive(parent, wrap.ID)
 	}

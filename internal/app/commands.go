@@ -252,7 +252,7 @@ func hasArg(c *command, name string) bool {
 var errNoCore = fmt.Errorf("not connected to herdr-core")
 
 func (a *App) ready() error {
-	if a.core == nil || !a.loaded {
+	if a.core == nil || !a.local().loaded {
 		return errNoCore
 	}
 	return nil
@@ -261,6 +261,10 @@ func (a *App) ready() error {
 // spawn starts a terminal for a pane in a tab of a space, off the main
 // thread, and calls place with its address once it runs.
 func (a *App) spawn(spaceID, tabID, cwd string, argv []string, place func(addr string)) {
+	if m := layout.MachineOf(spaceID); m != "" {
+		a.notifyLevel("Cannot start a terminal on "+m+" yet: other machines' spaces are shown, not run from here", levelError)
+		return
+	}
 	be := a.core
 	labels := map[string]string{"herdr.space": spaceID, "herdr.tab": tabID, "herdr.seen": "0"}
 	a.obtain(tabID, func(ctx context.Context) (string, error) {

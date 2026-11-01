@@ -1,6 +1,6 @@
 # Remote machines — plan
 
-Status: phases 0 and 1 done (below). Branch `remote-machines`
+Status: phases 0, 1 and 2 done (below). Branch `remote-machines`
 (from `main` at `0a8c145`). Reference: herdr-app, public at
 https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
 
@@ -248,21 +248,26 @@ machine leaves the list, its spaces go from the window.
      `MachineAdd`, `MachineRename`, `MachineRemove`, `MachineUpdate`, and
      `Exec(machine, cwd, argv)` ⇒ code, stdout, stderr.
    - Tests: the fake core (`fake_test.go`); a fake `hc` script on `PATH`.
-2. **Layout per machine, read and shown.**
-   - `Space.Machine`; `layout.Qualify`, `Split` and `MachineOf`, with
-     tests, unknown fields round-tripping.
-   - Per-machine sync state; read every connected machine's document;
-     poll `machine.list` (temporary ones left out); remote spaces in the
-     sidebar; remote panes attach; a machine that leaves takes its spaces
-     away.
-   - Writing is still local only, so remote spaces are read only in this
-     phase.
-   - `fakeBackend` gains machines and a document per machine.
-3. **Writing and terminals.**
-   - Per-machine `flush` and conflicts; moves inside a machine's block.
-   - Spawn, split, close, rename, adopt, keep and park on other machines;
-     herdr-app's remote launch script.
-   - Disconnected machines read only.
+2. **Layout per machine, read, shown and written.** Done:
+   `layout/machines.go` (`Space.Machine`, `Qualify`, `Local`, `MachineOf`,
+   `Part`, `Replace`, `Drop`, `OrderSpaces`, `AddSpaceOn`, `NewIDOn`;
+   `MoveSpace` keeps a machine's spaces together). In the window,
+   `docSync` per machine (`a.docs`, `a.local()`), `a.machines` polled
+   every 2.5 s and when terminals change, temporary ones left out;
+   `fetchDoc` reads a machine's document on connect, on reconnect
+   (`since_ms`) and on its doc events; `flush1` saves each machine's part
+   (writing came along, as it is the same code: phase 3 is left with the
+   terminals). A machine not connected keeps its spaces and its saves
+   wait; one that leaves takes its spaces away. Until phase 3, `spawn`
+   refuses spaces of other machines. Tests: `internal/app/machines_test.go`
+   (`fakeCore` has machines and a document per machine).
+3. **Terminals on other machines.**
+   - Spawn, split, adopt, keep and park on other machines (lift the
+     refusal in `spawn`); labels hold that machine's ids; herdr-app's
+     remote launch script.
+   - `reconcile`, `orphan`, `checkMissing` for remote addresses once that
+     machine is usable and its document loaded.
+   - Disconnected machines read only in the window (no edits).
    - `space.new --machine`, starting in that machine's home.
 4. **Machines in the window.** Sidebar groups, status bar, Settings →
    Machines (with Add from `~/.ssh/config`, the add-in-a-tab path, Rename,

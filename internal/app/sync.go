@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -47,27 +48,40 @@ func (a *App) shutdown() {
 }
 
 // drain writes the last edits of the layout before the window goes, as
-// herdr-app does: it waits for the save in flight, then saves what is left.
+// herdr-app does: it waits for the saves in flight, then saves what is
+// left, each machine's document in its turn.
 func (a *App) drain() {
-	if done := a.sy.saveDone; done != nil {
-		select {
-		case <-done:
-		case <-time.After(drainTimeout):
+	deadline := time.After(drainTimeout)
+	for _, ds := range a.docs {
+		if done := ds.saveDone; done != nil {
+			select {
+			case <-done:
+			case <-deadline:
+			}
 		}
 	}
-	// The save's reply is among the posted work.
+	// The saves' replies are among the posted work.
 	a.runPosted()
-	if a.core == nil || !a.loaded || a.saving || layout.Equal(a.doc, a.base) {
-		return
-	}
-	value, err := a.doc.Encode()
-	if err != nil {
+	if a.core == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
 	defer cancel()
-	if next, err := a.core.DocSet(ctx, docName, "", a.version, value); err == nil {
-		a.base, a.version, a.dirty = a.doc.Clone(), next, false
+	for m, ds := range a.docs {
+		if !ds.loaded || ds.saving || !a.usable(m) {
+			continue
+		}
+		part := a.part(m)
+		if layout.Equal(part, ds.base) {
+			continue
+		}
+		value, err := part.Encode()
+		if err != nil {
+			continue
+		}
+		if next, err := a.core.DocSet(ctx, docName, m, ds.version, value); err == nil {
+			ds.base, ds.version, ds.dirty = part, next, false
+		}
 	}
 }
 
@@ -102,21 +116,36 @@ func (a *App) session1(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	value, version, err := docGet(ctx, cl)
+	value, version, err := docGet(ctx, cl, "")
 	if err != nil {
 		return err
 	}
 	terms := ev.Terminals()
+	machines, _ := machineList(ctx, cl)
 	a.post(func() {
 		a.connectedTo(cl, terms)
-		a.remoteDoc(value, version)
+		a.remoteDoc("", value, version)
+		a.setMachines(machines)
 	})
+	// The machines are polled, as herdr-app does: often, and when the
+	// terminals change, which they do when a machine comes or goes.
+	poll := time.NewTicker(machinePoll)
+	defer poll.Stop()
+	var polled time.Time
+	pollMachines := func() {
+		polled = time.Now()
+		if ms, err := machineList(ctx, cl); err == nil {
+			a.post(func() { a.setMachines(ms) })
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-cl.Done():
 			return errors.New("lost the core")
+		case <-poll.C:
+			pollMachines()
 		case ch, ok := <-ev.Changes():
 			if !ok {
 				return errors.New("the core's event stream ended")
@@ -124,23 +153,45 @@ func (a *App) session1(ctx context.Context) error {
 			if ch.Terminals {
 				terms := ev.Terminals()
 				a.post(func() { a.setTerminals(terms) })
+				if time.Since(polled) > machinePollMin {
+					pollMachines()
+				}
 			}
-			if ch.Docs {
-				value, version, err := docGet(ctx, cl)
+			if ch.DocChanged("") {
+				value, version, err := docGet(ctx, cl, "")
 				if err != nil {
 					return err
 				}
-				a.post(func() { a.remoteDoc(value, version) })
+				a.post(func() { a.remoteDoc("", value, version) })
+			}
+			if ch.Docs {
+				// Other machines' documents are read off this loop: a
+				// machine far away does not hold up this one's events.
+				a.post(func() {
+					for m := range a.docs {
+						if m != "" && ch.DocChanged(m) {
+							a.fetchDoc(m)
+						}
+					}
+				})
 			}
 		}
 	}
 }
 
-// docGet reads the layout document, giving up on a core that hangs.
-func docGet(ctx context.Context, be backend) (json.RawMessage, uint64, error) {
+// docGet reads a machine's layout document ("" this one's), giving up on
+// a core that hangs.
+func docGet(ctx context.Context, be backend, machine string) (json.RawMessage, uint64, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	return be.DocGet(ctx, docName, "")
+	return be.DocGet(ctx, docName, machine)
+}
+
+// machineList lists the machines the core knows.
+func machineList(ctx context.Context, be backend) ([]core.Machine, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return be.Machines(ctx)
 }
 
 func (a *App) connectedTo(cl *core.Client, terms []core.Terminal) {
@@ -148,10 +199,12 @@ func (a *App) connectedTo(cl *core.Client, terms []core.Terminal) {
 	a.client, a.core = cl, cl
 	a.connected, a.connErr = true, ""
 	// Edits a lost connection kept from the core go out again.
-	if a.loaded && !layout.Equal(a.doc, a.base) {
-		a.dirty = true
+	for m, ds := range a.docs {
+		if ds.loaded && !layout.Equal(a.part(m), ds.base) {
+			ds.dirty = true
+		}
+		ds.saveAfter = time.Time{}
 	}
-	a.sy.saveAfter = time.Time{}
 	a.setTerminals(terms)
 }
 
@@ -159,7 +212,9 @@ func (a *App) disconnected(why string) {
 	a.sy.gen++
 	a.connected, a.connErr = false, why
 	a.client, a.core = nil, nil
-	a.saving = false
+	for _, ds := range a.docs {
+		ds.saving, ds.fetching = false, false
+	}
 	clear(a.sy.checking)
 	clear(a.sy.adopting)
 	// The streams end with the connection; terminals attach again once
@@ -179,31 +234,172 @@ func (a *App) setTerminals(list []core.Terminal) {
 	a.reconcile()
 }
 
-// remoteDoc takes a version of the document the core has.
-func (a *App) remoteDoc(value json.RawMessage, version uint64) {
-	if a.loaded && version <= a.version {
+// setMachines takes the core's list of machines. Temporary ones are left
+// out, as herdr-app does: they are agents' short-lived sandboxes. A
+// connected machine's document is read when it first connects and when
+// it connects again (its since_ms changes); a machine that leaves the
+// list takes its spaces away; one that is listed but not connected keeps
+// them shown as they were.
+func (a *App) setMachines(list []core.Machine) {
+	var ms []core.Machine
+	for _, m := range list {
+		if !m.Temporary && m.Name != "" {
+			ms = append(ms, m)
+		}
+	}
+	slices.SortFunc(ms, func(x, y core.Machine) int { return strings.Compare(x.Name, y.Name) })
+	a.machines = ms
+	for _, m := range ms {
+		if !m.Usable() {
+			continue
+		}
+		if ds := a.ds(m.Name); !ds.loaded || ds.since != m.SinceMs {
+			a.fetchDoc(m.Name)
+		}
+	}
+	for name := range a.docs {
+		if _, ok := a.machine(name); name != "" && !ok {
+			a.dropMachine(name)
+		}
+	}
+}
+
+// machine is the machine of that name the core lists.
+func (a *App) machine(name string) (core.Machine, bool) {
+	for _, m := range a.machines {
+		if m.Name == name {
+			return m, true
+		}
+	}
+	return core.Machine{}, false
+}
+
+// usable reports whether a machine's terminals and document can be used:
+// this one's always, another's while it is connected.
+func (a *App) usable(machine string) bool {
+	if machine == "" {
+		return true
+	}
+	m, ok := a.machine(machine)
+	return ok && m.Usable()
+}
+
+// dropMachine takes the spaces of a machine that left the list away; its
+// terminals keep running there.
+func (a *App) dropMachine(name string) {
+	delete(a.docs, name)
+	if a.doc == nil {
 		return
 	}
-	if a.saving || a.dragging {
+	a.doc.Drop(name)
+	a.fixView()
+	a.dropUnshown()
+}
+
+// ds is the sync state of a machine's document ("" this one's).
+func (a *App) ds(machine string) *docSync {
+	ds := a.docs[machine]
+	if ds == nil {
+		ds = &docSync{}
+		a.docs[machine] = ds
+	}
+	return ds
+}
+
+// local is the sync state of this machine's document.
+func (a *App) local() *docSync { return a.ds("") }
+
+// part is a machine's document as the window would save it: its spaces in
+// that machine's ids, and the fields of its last copy that the window does
+// not know.
+func (a *App) part(machine string) *layout.Document {
+	if a.doc == nil {
+		return &layout.Document{}
+	}
+	p := a.doc.Part(machine)
+	if ds := a.docs[machine]; machine != "" && ds != nil && ds.base != nil {
+		p.Extra = ds.base.Extra
+	}
+	return p
+}
+
+// fetchDoc reads a machine's document in the background, one read in
+// flight per machine.
+func (a *App) fetchDoc(machine string) {
+	ds := a.ds(machine)
+	if ds.fetching || a.core == nil {
+		return
+	}
+	ds.fetching = true
+	be, gen := a.core, a.sy.gen
+	m, _ := a.machine(machine)
+	go func() {
+		value, version, err := docGet(context.Background(), be, machine)
+		a.post(func() {
+			if gen != a.sy.gen {
+				return
+			}
+			ds := a.docs[machine]
+			if ds == nil {
+				return // the machine left
+			}
+			ds.fetching = false
+			if err != nil {
+				ds.err = err.Error()
+				return
+			}
+			if a.remoteDoc(machine, value, version) {
+				ds.since = m.SinceMs
+			}
+		})
+	}()
+}
+
+// remoteDoc takes a version of a machine's document its core has. It
+// reports whether the window has that version now, or will read it again.
+func (a *App) remoteDoc(machine string, value json.RawMessage, version uint64) bool {
+	ds := a.ds(machine)
+	if ds.loaded && version <= ds.version {
+		return true
+	}
+	if ds.saving || a.dragging {
 		// The reply to our save tells which version is ours, and a drag
 		// is not cut short: look again after either.
-		a.refetch = true
-		return
+		ds.refetch = true
+		return true
 	}
 	d, err := layout.Decode(value)
 	if err != nil {
-		a.connErr = "layout unavailable: " + err.Error()
-		return
+		if machine == "" {
+			a.connErr = "layout unavailable: " + err.Error()
+		}
+		ds.err = "layout unavailable: " + err.Error()
+		return false
 	}
-	if a.loaded && !layout.Equal(a.doc, a.base) {
+	if a.doc == nil {
+		if machine != "" {
+			return false // this machine's comes first
+		}
+		a.doc = &layout.Document{}
+	}
+	if ds.loaded && !layout.Equal(a.part(machine), ds.base) {
 		// Someone else saved first: their copy wins, as in herdr-app.
-		a.notify("Layout changed elsewhere")
+		a.notify(changedElsewhere(machine))
 	}
-	a.doc, a.base, a.version, a.loaded = d, d.Clone(), version, true
-	a.dirty = false
+	a.doc.Replace(d, machine)
+	ds.base, ds.version, ds.loaded, ds.err = d, version, true, ""
+	ds.dirty = false
 	a.fixView()
 	a.dropUnshown()
 	a.reconcile()
+	return true
+}
+
+func changedElsewhere(machine string) string {
+	if machine == "" {
+		return "Layout changed elsewhere"
+	}
+	return "Layout of " + machine + " changed elsewhere"
 }
 
 // dropUnshown detaches the terminals no pane shows any more; they keep
@@ -221,82 +417,97 @@ func (a *App) dropUnshown() {
 // changed records an edit of the document, saved once no divider is
 // being dragged.
 func (a *App) changed() {
-	a.dirty = true
+	for _, ds := range a.docs {
+		ds.dirty = true
+	}
 	a.fixView()
 }
 
-// flush saves the document when it differs from the core's: one save in
-// flight at a time, compare-and-set on the version.
+// flush saves each machine's document that differs from its core's: one
+// save in flight per machine, compare-and-set on the version.
 func (a *App) flush() {
-	if a.saving || a.dragging || a.core == nil || !a.loaded {
+	if a.dragging || a.core == nil {
 		return
 	}
-	if a.refetch {
-		a.refetch = false
-		a.refetchDoc()
+	for m, ds := range a.docs {
+		a.flush1(m, ds)
 	}
-	if !a.dirty || time.Now().Before(a.sy.saveAfter) {
+}
+
+func (a *App) flush1(machine string, ds *docSync) {
+	if ds.saving || !ds.loaded || !a.usable(machine) {
 		return
 	}
-	a.dirty = false
-	if layout.Equal(a.doc, a.base) {
+	if ds.refetch {
+		ds.refetch = false
+		a.fetchDoc(machine)
+	}
+	if !ds.dirty || time.Now().Before(ds.saveAfter) {
 		return
 	}
-	snapshot := a.doc.Clone()
+	ds.dirty = false
+	snapshot := a.part(machine)
+	if layout.Equal(snapshot, ds.base) {
+		return
+	}
 	value, err := snapshot.Encode()
 	if err != nil {
 		a.notify("cannot save the layout: " + err.Error())
 		return
 	}
-	a.saving = true
-	be, version, gen := a.core, a.version, a.sy.gen
+	ds.saving = true
+	be, version, gen := a.core, ds.version, a.sy.gen
 	done := make(chan struct{})
-	a.sy.saveDone = done
+	ds.saveDone = done
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
-		next, err := be.DocSet(ctx, docName, "", version, value)
+		next, err := be.DocSet(ctx, docName, machine, version, value)
 		conflict := core.IsKind(err, "conflict")
 		var latest json.RawMessage
 		var latestVersion uint64
 		var getErr error
 		if conflict {
-			latest, latestVersion, getErr = be.DocGet(ctx, docName, "")
+			latest, latestVersion, getErr = be.DocGet(ctx, docName, machine)
 		}
 		a.post(func() {
-			if gen != a.sy.gen {
-				// A reply from a connection since lost: connectedTo
-				// decides what to save on the new one.
+			if gen != a.sy.gen || a.docs[machine] != ds {
+				// A reply from a connection since lost, or about a
+				// machine that left: connectedTo decides what to save.
 				return
 			}
-			a.saving = false
+			ds.saving = false
 			switch {
 			case err == nil:
-				a.base, a.version = snapshot, next
-				a.sy.saveFails = 0
-				if !layout.Equal(a.doc, a.base) {
-					a.dirty = true
+				ds.base, ds.version = snapshot, next
+				ds.saveFails = 0
+				if !layout.Equal(a.part(machine), ds.base) {
+					ds.dirty = true
 				}
 			case conflict:
-				a.notify("Layout changed elsewhere")
-				a.refetch = false
+				a.notify(changedElsewhere(machine))
+				ds.refetch = false
 				if getErr == nil {
 					// Take the other copy; this edit is lost, as in
 					// herdr-app.
-					a.base = a.doc.Clone()
-					a.remoteDoc(latest, latestVersion)
+					ds.base = a.part(machine)
+					a.remoteDoc(machine, latest, latestVersion)
 				} else {
-					a.refetch = true
+					ds.refetch = true
 				}
 			default:
 				// The edit stays and goes out again shortly.
-				if a.sy.saveFails == 0 {
-					a.notify("cannot save the layout: " + err.Error())
+				if ds.saveFails == 0 {
+					what := "the layout"
+					if machine != "" {
+						what = "the layout of " + machine
+					}
+					a.notify("cannot save " + what + ": " + err.Error())
 				}
-				a.sy.saveFails++
-				a.dirty = true
-				wait := saveRetry * time.Duration(min(a.sy.saveFails, 5))
-				a.sy.saveAfter = time.Now().Add(wait)
+				ds.saveFails++
+				ds.dirty = true
+				wait := saveRetry * time.Duration(min(ds.saveFails, 5))
+				ds.saveAfter = time.Now().Add(wait)
 				a.later(wait, func() {})
 			}
 		})
@@ -309,31 +520,13 @@ func (a *App) later(d time.Duration, fn func()) {
 	time.AfterFunc(d, func() { a.post(fn) })
 }
 
-func (a *App) refetchDoc() {
-	be, gen := a.core, a.sy.gen
-	if be == nil {
-		return
-	}
-	go func() {
-		value, version, err := docGet(context.Background(), be)
-		if err != nil {
-			return
-		}
-		a.post(func() {
-			if gen == a.sy.gen {
-				a.remoteDoc(value, version)
-			}
-		})
-	}()
-}
-
 // reconcile matches panes with terminals: a pane whose terminal finished
 // or is gone closes, and a live terminal labelled with one of our spaces
 // that no pane shows gets one (herdr-app's adoption, docs/labels.md).
 // Only this machine's terminals count; other machines' have documents of
 // their own.
 func (a *App) reconcile() {
-	if !a.loaded || !a.connected {
+	if !a.local().loaded || !a.connected {
 		return
 	}
 	now := time.Now()
@@ -459,8 +652,8 @@ func (a *App) startAdoption(rec core.Terminal) {
 			if !ok {
 				return
 			}
-			a.remoteDoc(value, version)
-			if a.saving || a.dragging || version > a.version {
+			a.remoteDoc("", value, version)
+			if ls := a.local(); ls.saving || a.dragging || version > ls.version {
 				// The document is moving: decide on a later pass.
 				a.later(adoptGrace, a.reconcile)
 				return
@@ -539,13 +732,27 @@ func (a *App) adopt(rec core.Terminal) {
 	}
 }
 
+// docSync is the bookkeeping of one machine's layout document. It
+// belongs to the main thread.
+type docSync struct {
+	base      *layout.Document // the last version its core has, in that machine's ids
+	version   uint64           // base's number
+	loaded    bool
+	saving    bool
+	dirty     bool
+	refetch   bool          // a newer version arrived while a save was in flight
+	fetching  bool          // a read of it is in flight
+	since     int64         // the machine's since_ms when it was read
+	err       string        // why it could not be read, if it could not
+	saveDone  chan struct{} // closed when the latest save's call returned
+	saveFails int           // saves failed in a row, not for a conflict
+	saveAfter time.Time     // no save before then
+}
+
 // syncState is the bookkeeping of keeping the document and the core's
 // terminals in step. It belongs to the main thread.
 type syncState struct {
 	gen         int                  // counts connections, to drop replies from lost ones
-	saveDone    chan struct{}        // closed when the latest save's call returned
-	saveFails   int                  // saves failed in a row, not for a conflict
-	saveAfter   time.Time            // no save before then
 	orphanSince map[string]time.Time // live terminals of ours without a pane, since
 	adopting    map[string]bool      // adoptions being confirmed with the core
 	checking    map[string]time.Time // pane terminals the core was last asked about
@@ -553,6 +760,8 @@ type syncState struct {
 }
 
 const (
+	machinePoll    = 2500 * time.Millisecond // herdr-app's: every 5th 500 ms tick
+	machinePollMin = 500 * time.Millisecond  // and when terminals change, not more often
 	callTimeout    = 10 * time.Second
 	drainTimeout   = 4 * time.Second
 	saveRetry      = 2 * time.Second

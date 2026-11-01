@@ -86,10 +86,17 @@ func (s *Space) Label(home string) string {
 
 func clampIndex(i, n int) int { return min(max(i, 0), n-1) }
 
-// AddSpace appends a new, empty space.
+// AddSpace appends a new, empty space of this machine's.
 func (d *Document) AddSpace(name, folder string) *Space {
-	s := &Space{ID: NewID("sp"), Name: name, Folder: folder, Tabs: []*Tab{}}
+	return d.AddSpaceOn("", name, folder)
+}
+
+// AddSpaceOn adds a new, empty space on a machine ("" this one), last of
+// that machine's.
+func (d *Document) AddSpaceOn(machine, name, folder string) *Space {
+	s := &Space{ID: NewIDOn(machine, "sp"), Name: name, Folder: folder, Tabs: []*Tab{}, Machine: machine}
 	d.Spaces = append(d.Spaces, s)
+	d.OrderSpaces()
 	return s
 }
 
@@ -103,15 +110,21 @@ func (d *Document) RemoveSpace(id string) bool {
 	return true
 }
 
-// MoveSpace moves a space to index (clamped to the valid range).
+// MoveSpace moves a space to index, clamped to the places of its
+// machine's spaces: a machine's spaces stay together.
 func (d *Document) MoveSpace(id string, index int) bool {
-	return moveItem(&d.Spaces, func(s *Space) bool { return s.ID == id }, index)
+	s := d.Space(id)
+	if s == nil {
+		return false
+	}
+	lo, hi := d.block(s.Machine)
+	return moveItem(&d.Spaces, func(x *Space) bool { return x == s }, min(max(index, lo), hi-1))
 }
 
 // AddTab appends a tab whose root row holds one block running terminal.
 func (s *Space) AddTab(name, terminal string) (*Tab, *Node) {
-	id := NewID("tb")
-	pane := &Node{ID: NewID("p"), Type: TypeBlock, Content: &Content{Terminal: terminal}, Size: weight(1)}
+	id := NewIDOn(s.Machine, "tb")
+	pane := &Node{ID: NewIDOn(s.Machine, "p"), Type: TypeBlock, Content: &Content{Terminal: terminal}, Size: weight(1)}
 	t := &Tab{ID: id, Name: name, Root: &Node{ID: id, Type: TypeRow, Children: []*Node{pane}}}
 	s.Tabs = append(s.Tabs, t)
 	return t, pane

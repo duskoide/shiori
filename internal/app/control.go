@@ -268,8 +268,8 @@ func (a *App) statusReport() any {
 	return map[string]any{
 		"connected":     a.connected,
 		"error":         a.connErr,
-		"layout_loaded": a.loaded,
-		"doc_version":   a.version,
+		"layout_loaded": a.local().loaded,
+		"doc_version":   a.local().version,
 		"focus":         focus,
 		"overlays":      overlays,
 		"session":       a.session,

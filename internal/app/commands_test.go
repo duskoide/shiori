@@ -57,6 +57,7 @@ func (f *fakeBackend) DocSet(context.Context, string, string, uint64, json.RawMe
 func (f *fakeBackend) DocGet(context.Context, string, string) (json.RawMessage, uint64, error) {
 	return nil, 0, errors.New("no")
 }
+func (f *fakeBackend) Machines(context.Context) ([]core.Machine, error) { return nil, nil }
 
 // testApp is an app with a loaded, empty document and a fake backend.
 func testApp(t *testing.T) (*App, *fakeBackend) {
@@ -64,7 +65,7 @@ func testApp(t *testing.T) (*App, *fakeBackend) {
 	a := newApp(t.TempDir(), "x")
 	f := &fakeBackend{}
 	a.core = f
-	a.loaded = true
+	a.local().loaded = true
 	a.doc = &layout.Document{}
 	return a, f
 }
