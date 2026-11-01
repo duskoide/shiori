@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Tag to release (must exist), e.g. v0.1.0
+        description: Version to release, e.g. v0.1.0 (the tag is created on the chosen branch if missing)
         required: true
 permissions:
   contents: write
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -45,11 +45,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Build shiori
+        shell: bash
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
@@ -101,7 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ github.sha }}
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -116,6 +117,6 @@ jobs:
         run: |
           core="$(tar -xzOf dist/shiori_linux_amd64.tar.gz ./CORE_VERSION)"
           gh release view "$TAG" >/dev/null 2>&1 ||
-            gh release create "$TAG" --verify-tag --title "Shiori $TAG" --generate-notes \
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Shiori $TAG" --generate-notes \
               --notes "Bundles herdr-core ($core). Install: \`curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh\`"
           gh release upload "$TAG" dist/*.tar.gz dist/install.sh dist/checksums.txt --clobber
