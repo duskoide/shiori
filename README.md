@@ -31,8 +31,7 @@ herdr-app can show the same spaces side by side.
   over SSH, beside this one's, each under its name in the sidebar; added
   and managed in Settings → Machines (see "Work on another machine")
 - Mods: commands, keys and event handlers added by programs in any
-  language, over the control socket (see [docs/MODS.md](docs/MODS.md) and
-  `examples/mods`)
+  language, over the control socket (see [examples/mods](examples/mods/README.md))
 - herdr-app's default key bindings (`keys.json` overrides them)
 - A control CLI compatible with herdr-app's
   (`shiori do tab.new --argv '["claude"]' --task "..."`)
@@ -201,7 +200,7 @@ selects the herdr-core session.
 | | `restore` | `false` closes the panes whose terminals herdr-core lost when it stopped, instead of starting fresh shells in them | Layout |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
 | `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
-| `mods/<id>/mod.json` | | a mod: see [docs/MODS.md](docs/MODS.md) | Mods |
+| `mods/<id>/mod.json` | | a mod: see [examples/mods](examples/mods/README.md) | Mods |
 
 Machines are herdr-core's (`hc machine ls`), not Shiori's: no file here
 holds them, and Settings → Machines is where they are managed.
@@ -221,14 +220,10 @@ The panel writes the files as you change things, and
 | `internal/agent` | agent status words and attention |
 | `internal/recovery` | the session snapshot: what brings panes back after herdr-core stopped |
 | `internal/theme`, `internal/programs`, `internal/keys` | themes, program table and icons, key bindings |
-| `docs/PROTOCOL.md` | notes on the core's wire protocol |
-| `docs/CONTRACTS.md` | the packages' public APIs |
 | `internal/mods` | mods' manifests |
 | `internal/changes` | the files being changed in a folder, for the changes panel |
 | `internal/update` | new versions: the latest release, and installing one (`shiori update`) |
-| `docs/MODS.md` | mods: the manifest, the protocol, events |
-| `docs/REMOTE.md` | other machines' spaces and terminals: how they work, and how they were built |
-| `examples/mods` | two mods: a one-shot command, and a service in Python |
+| `examples/mods` | how to write a mod (the manifest, the protocol, events), and two: a one-shot command, and a service in Python |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
 | `bench` | the performance comparison with herdr-app |
 

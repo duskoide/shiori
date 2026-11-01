@@ -22,7 +22,7 @@ import (
 
 // Mods are folders of $SHIORI_HOME/mods that add commands, keys and event
 // handlers, served by programs that run outside the window. See
-// docs/MODS.md. A mod runs once the person turns it on, and again after a
+// examples/mods/README.md. A mod runs once the person turns it on, and again after a
 // change to its manifest only once they look at it again.
 
 // ModSetting is a mod's entry in settings.json: whether it is on, for the

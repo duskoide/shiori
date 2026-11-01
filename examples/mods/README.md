@@ -1,7 +1,7 @@
-# Mods — design
+# Mods
 
-Status: built (the first phase). The examples below are in
-`examples/mods/`, and the tests run them.
+The examples below are in this folder (`agent-notify`, `open-in-editor`),
+and the tests run them.
 
 A mod adds commands to Shiori and reacts to what happens in the window. It
 is a folder with a manifest and a program; the program runs outside the

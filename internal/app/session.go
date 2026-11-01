@@ -16,7 +16,7 @@ import (
 // it stays open, and both sides speak JSON-RPC 2.0, one message a line.
 // The client calls the window (do, ls, status, subscribe); the window
 // sends it events and, when it is a mod's service, calls it (command.run).
-// See docs/MODS.md.
+// See examples/mods/README.md.
 
 // apiVersion is the version of the protocol this window speaks.
 const apiVersion = 1

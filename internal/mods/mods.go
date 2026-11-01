@@ -1,6 +1,6 @@
 // Package mods reads mods: folders of $SHIORI_HOME/mods, each with a
 // manifest (mod.json) that names the commands, keys and events a mod adds
-// and the programs that serve them. See docs/MODS.md.
+// and the programs that serve them. See examples/mods/README.md.
 package mods
 
 import (

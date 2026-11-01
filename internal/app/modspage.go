@@ -73,7 +73,7 @@ func (a *App) modsPage(c *ui.Context, k *colors) {
 		ui.Column(c).Padding(28, 16).Gap(6).AlignItems(ui.Center).Radius(10).Border(1, k.border).Children(func() {
 			ui.Icon(c, glyph("puzzle")).Size(26, 26).TextColor(k.dim)
 			ui.Text(c, "No mods yet").FontSize(13).FontWeight(600).TextColor(k.foreground)
-			ui.Text(c, "Put a mod's folder in the mods folder; docs/MODS.md says what goes in it.").FontSize(12).TextColor(k.muted)
+			ui.Text(c, "Put a mod's folder in the mods folder; examples/mods/README.md in Shiori's repository says what goes in it.").FontSize(12).TextColor(k.muted)
 		})
 		return
 	}
