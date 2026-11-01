@@ -177,7 +177,7 @@ func (a *App) agentRow(c *ui.Context, k *colors, i int, e agentEntry) {
 	if len(e.space.Tabs) > 1 {
 		label += " / " + a.tabLabel(e.tab)
 	}
-	row := ui.Row(c.Key(e.rec.Address)).Height(sidebarRowH).Padding(0, 8).Gap(8).Radius(8).AlignItems(ui.Center).
+	row := ui.Row(c.Key(e.pane)).Height(sidebarRowH).Padding(0, 8).Gap(8).Radius(8).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Agent " + e.prog.Name + " " + label)
 	if current {
 		row.Background(k.selected)

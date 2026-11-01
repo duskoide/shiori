@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -18,6 +19,9 @@ type paletteState struct {
 	reveal   bool
 	switcher bool // opened as the picker: spaces and tabs first
 }
+
+// paletteRows is how many rows Page Up and Page Down move in the palette.
+const paletteRows = 12
 
 type paletteItem struct {
 	title, detail, keys string
@@ -101,11 +105,29 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 				if in.Changed() {
 					a.palette.sel, a.palette.reveal = 0, true
 				}
+				// Up and Down go round; Page Up and Page Down move a page.
+				move := func(d int, wrap bool) {
+					n := len(items)
+					if n == 0 {
+						return
+					}
+					sel := a.palette.sel + d
+					if wrap {
+						sel = (sel%n + n) % n
+					}
+					a.palette.sel, a.palette.reveal = min(max(sel, 0), n-1), true
+				}
 				if in.Shortcut(0, ui.KeyDown) {
-					a.palette.sel, a.palette.reveal = min(a.palette.sel+1, len(items)-1), true
+					move(1, true)
 				}
 				if in.Shortcut(0, ui.KeyUp) {
-					a.palette.sel, a.palette.reveal = max(a.palette.sel-1, 0), true
+					move(-1, true)
+				}
+				if in.Shortcut(0, ui.KeyPageDown) {
+					move(paletteRows, false)
+				}
+				if in.Shortcut(0, ui.KeyPageUp) {
+					move(-paletteRows, false)
 				}
 				if in.Submitted() && len(items) > 0 {
 					closeAndRun(items[a.palette.sel])
@@ -141,6 +163,9 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 				}
 			})
 			a.palette.reveal = false
+			// The keys that toggle the palette or open the picker work in
+			// it: behind it, in the window, they are inert.
+			a.shortcuts(c)
 		})
 	})
 	if !a.palette.open {
@@ -150,13 +175,16 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 
 // promptState asks for a line of text, as a new name.
 type promptState struct {
-	title, value, placeholder string
-	done                      func(string)
-	open                      bool
+	title, value, placeholder, hint string
+	done                            func(string)
+	open                            bool
 }
 
-func (a *App) askText(title, value, placeholder string, done func(string)) {
-	a.prompt = &promptState{title: title, value: value, placeholder: placeholder, done: done, open: true}
+// askText asks for a line of text: title heads the dialog, value is the
+// text to start from, placeholder shows while it is empty and hint says
+// what an empty answer does.
+func (a *App) askText(title, value, placeholder, hint string, done func(string)) {
+	a.prompt = &promptState{title: title, value: value, placeholder: placeholder, hint: hint, done: done, open: true}
 }
 
 func (a *App) promptView(c *ui.Context, k *colors) {
@@ -169,13 +197,26 @@ func (a *App) promptView(c *ui.Context, k *colors) {
 		panel.Width(420).Padding(16).Gap(12).Radius(12).Background(k.popover).Border(1, k.border).Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4))
 		panel.Children(func() {
 			ui.Text(c, p.title).FontSize(14).FontWeight(600).TextColor(k.foreground)
-			in := ui.TextInput(c, &p.value).Placeholder(p.placeholder).Label(p.title).AutoFocus()
-			if in.Submitted() {
+			submit := func() {
 				p.open = false
 				value, done := strings.TrimSpace(p.value), p.done
 				a.post(func() { done(value) })
 			}
-			ui.Text(c, "Enter to save, empty to name it after its folder or program, Esc to cancel").FontSize(11.5).TextColor(k.dim)
+			in := ui.TextInput(c, &p.value).Placeholder(p.placeholder).Label(p.title).AutoFocus()
+			if in.Submitted() {
+				submit()
+			}
+			if p.hint != "" {
+				ui.Text(c, p.hint).FontSize(11.5).TextColor(k.dim).LineHeight(1.35)
+			}
+			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+				if ui.Button(c, "Cancel").Tooltip("Esc").Clicked() {
+					p.open = false
+				}
+				if ui.PrimaryButton(c, "Save").Tooltip("Enter").Clicked() {
+					submit()
+				}
+			})
 		})
 	})
 	if !p.open {
@@ -231,9 +272,15 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 	}
 	ui.DialogBase(c, &a.settings, func(backdrop, panel ui.Element) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35))
-		panel.Width(460).Padding(18).Gap(14).Radius(12).Background(k.popover).Border(1, k.border).Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4))
+		panel.Width(520).Padding(18).Gap(14).Radius(12).Background(k.popover).Border(1, k.border).Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4))
 		panel.Children(func() {
-			ui.Text(c, "Settings").FontSize(15).FontWeight(600).TextColor(k.foreground)
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, "Settings").FontSize(15).FontWeight(600).TextColor(k.foreground)
+				ui.Spacer(c)
+				if iconButton(c, k, "x", "Close settings", 24, 14).Tooltip("Close  Esc").Clicked() {
+					a.settings = false
+				}
+			})
 			ui.Text(c, "Theme").FontSize(12).FontWeight(600).TextColor(k.muted)
 			ui.Row(c).Gap(6).Wrap().Children(func() {
 				current := a.cfg.Theme
@@ -241,13 +288,17 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 					current = "graphite"
 				}
 				for _, name := range theme.PresetNames {
-					chip := ui.Row(c.Key(name)).Padding(5, 10).Radius(7).Border(1, k.border).Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Theme " + name)
+					chip := ui.Row(c.Key(name)).Padding(5, 10, 5, 7).Gap(7).Radius(7).AlignItems(ui.Center).Border(1, k.border).
+						Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Theme " + name).Selected(name == current)
 					if name == current {
 						chip.Background(k.selected).Border(1, k.accent)
 					} else if chip.Hovered() {
 						chip.Background(k.hover)
 					}
-					chip.Children(func() { ui.Text(c, name).FontSize(12.5).TextColor(k.foreground) })
+					chip.Children(func() {
+						themeSwatch(c, k, name)
+						ui.Text(c, name).FontSize(12.5).TextColor(k.foreground)
+					})
 					if chip.Clicked() {
 						a.post(func() { a.do("app.theme", args{"name": name}) })
 					}
@@ -255,21 +306,37 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 			})
 			ui.Text(c, "Terminal text size").FontSize(12).FontWeight(600).TextColor(k.muted)
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				if ui.Button(c, "−").Label("Smaller text").Clicked() {
+				size := a.cfg.fontSize()
+				if ui.Button(c, "−").Label("Smaller text").Tooltip(withKeys("Smaller text", a.keysFor("app.zoom_out"))).Disabled(size <= minFontSize).Clicked() {
 					a.post(func() { a.zoomBy(-1) })
 				}
-				ui.Textf(c, "%g", a.cfg.fontSize()).FontSize(13).TextColor(k.foreground).Width(36)
-				if ui.Button(c, "+").Label("Larger text").Clicked() {
+				ui.Textf(c, "%g", size).FontSize(13).TextColor(k.foreground).Width(36).TextAlign(ui.Center)
+				if ui.Button(c, "+").Label("Larger text").Tooltip(withKeys("Larger text", a.keysFor("app.zoom_in"))).Disabled(size >= maxFontSize).Clicked() {
 					a.post(func() { a.zoomBy(1) })
 				}
-				if ui.Button(c, "Reset").Clicked() {
+				if ui.Button(c, "Reset").Tooltip(withKeys("Reset to 13", a.keysFor("app.zoom_reset"))).Disabled(a.cfg.FontSize == 0).Clicked() {
 					a.post(func() { a.zoomBy(0) })
 				}
 			})
-			ui.Text(c, "Keys: "+a.home+"/keys.json (herdr-app's format)").FontSize(11.5).TextColor(k.dim)
+			ui.Text(c, "Key bindings: "+tildePath(filepath.Join(a.home, "keys.json"))+" (herdr-app's format). Changes apply as you save.").
+				FontSize(11.5).TextColor(k.dim).LineHeight(1.35)
 		})
 	})
 	if !a.settings {
 		a.focusReq = a.focus[a.activeTab[a.activeSpace]]
 	}
+}
+
+// themeSwatch is a theme's colors in small: its background, with its text
+// and accent colors on it.
+func themeSwatch(c *ui.Context, k *colors, name string) {
+	p, ok := theme.Preset(name)
+	if !ok {
+		return
+	}
+	t := theme.Resolve(p)
+	ui.Row(c).Size(16, 16).Radius(4).Background(uiColor(t.Background)).Border(1, k.border).Gap(2).Center().Shrink(0).Children(func() {
+		ui.Box(c).Size(4, 4).Radius(2).Background(uiColor(t.Foreground))
+		ui.Box(c).Size(4, 4).Radius(2).Background(uiColor(t.Accent))
+	})
 }

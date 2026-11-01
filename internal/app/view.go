@@ -45,23 +45,36 @@ func (a *App) view(c *ui.Context) {
 
 // sidebarDivider is the edge of the sidebar that resizes it.
 func (a *App) sidebarDivider(c *ui.Context, k *colors) {
-	div := ui.Box(c).Width(1).Background(k.border).Cursor(ui.CursorResizeColumn).Role(ui.RoleSplitter).Label("Sidebar edge")
+	// One pixel of the layout, but a grip a few pixels wide over the
+	// sidebar's edge, so that it is easy to catch.
+	div := ui.Box(c).Width(sidebarGrip).Margin(0, 0, 0, 1-sidebarGrip).Shrink(0).
+		Cursor(ui.CursorResizeColumn).Role(ui.RoleSplitter).Label("Sidebar edge").Tooltip("Drag to resize, double-click to reset")
 	if dx, _, ok := div.Dragged(); ok {
 		a.sidebarW = min(max(a.sidebarW+dx, sidebarMin), sidebarMax)
 	}
 	if div.DoubleClicked() {
 		a.sidebarW = sidebarWidth
 	}
+	active := div.Hovered() || div.Dragging()
+	div.Draw(func(p *ui.Painter, r ui.Rect) {
+		if active {
+			p.Fill(ui.Rect{X: r.X + r.W - 2, Y: r.Y, W: 2, H: r.H}, k.accent.Alpha(0.6), 0)
+			return
+		}
+		p.Fill(ui.Rect{X: r.X + r.W - 1, Y: r.Y, W: 1, H: r.H}, k.border, 0)
+	})
 }
 
 // workArea shows the active tab's panes, or what keeps it from them.
 func (a *App) workArea(c *ui.Context, k *colors) {
 	t := a.tab()
 	switch {
+	case !a.connected && a.doc == nil && a.connErr != "":
+		a.emptyState(c, k, "Cannot reach herdr-core", a.connErr+"\n\nShiori keeps trying. It starts the core itself when hc is on your PATH.")
 	case !a.connected && a.doc == nil:
-		a.emptyState(c, k, "Connecting to herdr-core…", a.connErr)
+		a.emptyState(c, k, "Connecting to herdr-core…", "")
 	case t == nil:
-		a.emptyState(c, k, "No spaces yet", "")
+		a.emptyState(c, k, "No spaces yet", "A space is a folder with its own tabs and terminals.")
 	default:
 		a.tabContent(c, k, t)
 	}
@@ -73,7 +86,7 @@ func (a *App) emptyState(c *ui.Context, k *colors, title, detail string) {
 		ui.Icon(c, glyph("logo")).Size(40, 40).TextColor(k.dim)
 		ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(k.foreground)
 		if detail != "" {
-			ui.Text(c, detail).FontSize(12.5).TextColor(k.muted).MaxWidth(520)
+			ui.Text(c, detail).FontSize(12.5).TextColor(k.muted).MaxWidth(520).TextAlign(ui.Center).LineHeight(1.4)
 		}
 		if a.connected {
 			b := ui.Row(c).Padding(6, 12).Radius(7).Background(k.raised).Border(1, k.border).Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("New space")
