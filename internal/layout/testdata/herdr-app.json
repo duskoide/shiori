@@ -1,0 +1,40 @@
+{
+  "version_hint": {"a": [1, 2, {"b": null}]},
+  "spaces": [
+    {
+      "id": "sp0757831f00000000000000000000001",
+      "name": "",
+      "folder": "/home/pn",
+      "color": "teal",
+      "tabs": [
+        {
+          "id": "tb2f9e920b00000000000000000000001",
+          "name": "main",
+          "icon": "star",
+          "root": {
+            "id": "tb2f9e920b00000000000000000000001",
+            "type": "row",
+            "gap": 2,
+            "children": [
+              {"id": "pe844ff7e", "type": "block", "content": {"terminal": "t27", "cwd_hint": "/tmp"}, "size": {"weight": 1.0}, "border": {"style": "round"}},
+              {
+                "id": "col1", "type": "column", "size": {"px": 268.0, "min": 100},
+                "children": [
+                  {"id": "pm1", "type": "block", "content": {"mod": "clock", "props": {"fmt": "24h", "n": [1, 2.50, 3e2]}}, "size": {"weight": 0.25}, "hidden": false},
+                  {"id": "inner", "type": "row", "size": {"weight": 0.75}, "children": [
+                    {"id": "pa", "type": "block", "content": {"terminal": "mac/t7"}, "size": {"weight": 0.5}, "cloned_from": "pe844ff7e"},
+                    {"id": "pb", "type": "block", "content": {"tab": "active", "pane": {"x": 1}}, "size": {"px": 120}}
+                  ]}
+                ]
+              },
+              {"id": "stk", "type": "stack", "active": "s2", "header": true, "children": [
+                {"id": "s1", "type": "block", "content": {"agent": "focused"}},
+                {"id": "s2", "type": "block", "content": {"terminal": "t9"}}
+              ]}
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
