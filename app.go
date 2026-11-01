@@ -27,6 +27,8 @@ type backend interface {
 	Run(ctx context.Context, p core.RunParams) (string, error)
 	Kill(ctx context.Context, address string) error
 	Label(ctx context.Context, address string, labels map[string]string) error
+	Keep(ctx context.Context, address string, keep bool) error
+	Get(ctx context.Context, address string) (core.Terminal, error)
 	DocSet(ctx context.Context, name, on string, version uint64, value json.RawMessage) (uint64, error)
 	DocGet(ctx context.Context, name, on string) (json.RawMessage, uint64, error)
 }
