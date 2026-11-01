@@ -5,11 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 )
+
+// answerTimeout is how long a request waits for the main thread.
+var answerTimeout = 5 * time.Second
+
+// maxRequest is the longest request line the control socket reads.
+const maxRequest = 1 << 20
 
 // The control socket lets "herdr-mygo ls|status|do" and agents talk to
 // the running window: one JSON request line, one JSON reply line.
@@ -27,7 +35,11 @@ func socketPath(home string) string { return filepath.Join(home, "herdr-mygo.soc
 
 // listen serves the control socket until the app quits.
 func (a *App) listen() (net.Listener, error) {
-	if err := os.MkdirAll(a.home, 0o755); err != nil {
+	if err := os.MkdirAll(a.home, 0o700); err != nil {
+		return nil, err
+	}
+	// The socket runs commands: only its owner may reach it.
+	if err := os.Chmod(a.home, 0o700); err != nil {
 		return nil, err
 	}
 	path := socketPath(a.home)
@@ -38,6 +50,10 @@ func (a *App) listen() (net.Listener, error) {
 	os.Remove(path)
 	l, err := net.Listen("unix", path)
 	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		l.Close()
 		return nil, err
 	}
 	go func() {
@@ -55,13 +71,15 @@ func (a *App) listen() (net.Listener, error) {
 func (a *App) serve(conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
-	line, err := bufio.NewReader(conn).ReadBytes('\n')
+	line, err := bufio.NewReader(io.LimitReader(conn, maxRequest+1)).ReadBytes('\n')
 	if err != nil && len(line) == 0 {
 		return
 	}
 	var req request
 	var reply any
-	if err := json.Unmarshal(line, &req); err != nil {
+	if len(line) > maxRequest {
+		reply = map[string]string{"error": "request too large"}
+	} else if err := json.Unmarshal(line, &req); err != nil {
 		reply = map[string]string{"error": "bad request: " + err.Error()}
 	} else {
 		reply = a.answer(req)
@@ -72,13 +90,29 @@ func (a *App) serve(conn net.Conn) {
 
 // answer runs a request on the main thread and waits for its reply.
 func (a *App) answer(req request) any {
+	const (
+		waiting = iota
+		running
+		cancelled
+	)
+	var state atomic.Int32
 	out := make(chan any, 1)
-	a.post(func() { out <- a.handle(req) })
+	a.post(func() {
+		// A request given up on must not run when the window wakes up.
+		if !state.CompareAndSwap(waiting, running) {
+			return
+		}
+		out <- a.handle(req)
+	})
 	select {
 	case r := <-out:
 		return r
-	case <-time.After(5 * time.Second):
-		return map[string]string{"error": "the window did not answer"}
+	case <-time.After(answerTimeout):
+		if state.CompareAndSwap(waiting, cancelled) {
+			return map[string]string{"error": "the window did not answer"}
+		}
+		// It started just now: its answer is on its way.
+		return <-out
 	}
 }
 
