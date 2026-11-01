@@ -24,25 +24,34 @@ func (a *App) tabContent(c *ui.Context, k *colors, t *layout.Tab) {
 	a.node(c, k, t, t.Root, lone).Grow(1)
 }
 
-// weight is a node's share of its container.
+// fixedPx is the size in pixels of a node that has only that: it keeps it,
+// and is no share of its container.
+func fixedPx(n *layout.Node) (float32, bool) {
+	if s := n.Size; s != nil && (s.Weight == nil || *s.Weight <= 0) && s.Px != nil && *s.Px > 0 {
+		return float32(*s.Px), true
+	}
+	return 0, false
+}
+
+// weight is a node's share of its container; a node of fixed size has none.
 func weight(n *layout.Node) float32 {
-	if n.Size != nil {
-		if n.Size.Weight != nil && *n.Size.Weight > 0 {
-			return float32(*n.Size.Weight)
-		}
-		if n.Size.Px != nil && *n.Size.Px > 0 {
-			return float32(*n.Size.Px)
-		}
+	if _, ok := fixedPx(n); ok {
+		return 0
+	}
+	if n.Size != nil && n.Size.Weight != nil && *n.Size.Weight > 0 {
+		return float32(*n.Size.Weight)
 	}
 	return 1
 }
 
+// setWeight sets the share of a node (not one of fixed size); a size in
+// pixels it also has stays.
 func setWeight(n *layout.Node, w float32) {
 	v := float64(w)
 	if n.Size == nil {
 		n.Size = &layout.Size{}
 	}
-	n.Size.Weight, n.Size.Px = &v, nil
+	n.Size.Weight = &v
 }
 
 // node lays out a node of a tab's tree: a row or column of children with
@@ -70,24 +79,31 @@ func (a *App) node(c *ui.Context, k *colors, t *layout.Tab, n *layout.Node, lone
 	box.MinWidth(0).MinHeight(0).AlignItems(ui.Stretch)
 	bounds := box.Bounds()
 	children := append([]*layout.Node(nil), n.Children...)
-	var total float32
+	var total, fixed float32
 	for _, ch := range children {
 		total += weight(ch)
+		fixed += func() float32 { px, _ := fixedPx(ch); return px }()
 	}
 	box.Children(func() {
 		for i, ch := range children {
 			if i > 0 {
-				a.divider(c, k, vertical, bounds, total, len(children), children[i-1], ch)
+				a.divider(c, k, vertical, bounds, total, fixed, len(children), children[i-1], ch)
 			}
-			a.node(c, k, t, ch, lone).Grow(weight(ch)).Basis(0).MinWidth(0).MinHeight(0)
+			el := a.node(c, k, t, ch, lone)
+			if px, ok := fixedPx(ch); ok {
+				el.Basis(px).Grow(0).Shrink(0)
+			} else {
+				el.Grow(weight(ch)).Basis(0)
+			}
+			el.MinWidth(0).MinHeight(0)
 		}
 	})
 	return box
 }
 
 // divider sits between two siblings; dragging it moves weight between
-// them.
-func (a *App) divider(c *ui.Context, k *colors, vertical bool, bounds ui.Rect, total float32, count int, before, after *layout.Node) {
+// them. Next to a node of fixed size it does nothing: that size stays.
+func (a *App) divider(c *ui.Context, k *colors, vertical bool, bounds ui.Rect, total, fixed float32, count int, before, after *layout.Node) {
 	div := ui.Box(c.Key("div:" + after.ID)).Role(ui.RoleSplitter).Label("Divider")
 	if vertical {
 		div.Height(paneGap).Cursor(ui.CursorResizeRow)
@@ -97,13 +113,16 @@ func (a *App) divider(c *ui.Context, k *colors, vertical bool, bounds ui.Rect, t
 	if div.Dragging() {
 		a.dragging = true
 	}
-	if dx, dy, ok := div.Dragged(); ok {
+	_, fixedBefore := fixedPx(before)
+	_, fixedAfter := fixedPx(after)
+	movable := !fixedBefore && !fixedAfter
+	if dx, dy, ok := div.Dragged(); ok && movable {
 		span := bounds.W
 		d := dx
 		if vertical {
 			span, d = bounds.H, dy
 		}
-		span -= float32(count-1) * paneGap
+		span -= float32(count-1)*paneGap + fixed
 		if span > 0 && total > 0 {
 			dw := d / span * total
 			wb, wa := weight(before), weight(after)
@@ -114,7 +133,7 @@ func (a *App) divider(c *ui.Context, k *colors, vertical bool, bounds ui.Rect, t
 			a.changed()
 		}
 	}
-	if div.DoubleClicked() {
+	if div.DoubleClicked() && movable {
 		sum := weight(before) + weight(after)
 		setWeight(before, sum/2)
 		setWeight(after, sum/2)
