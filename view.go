@@ -9,11 +9,12 @@ import (
 // view builds the window: the sidebar beside the tab bar, the panes and
 // the status bar, then the overlays.
 func (a *App) view(c *ui.Context) {
-	a.services = c.Services()
-	a.runPosted()
-	if a.win != nil {
-		a.focused = a.win.IsFocused()
+	a.setServices(c.Services())
+	if w := a.win; w != nil {
+		a.bindWindow(w)
+		a.focused = w.IsFocused()
 	}
+	a.runPosted()
 	k := a.k
 	c.SetTheme(k.uiTheme(c.Theme()))
 	c.Root().Background(k.canvas)
@@ -32,6 +33,7 @@ func (a *App) view(c *ui.Context) {
 		})
 	})
 	a.shortcuts(c)
+	a.syncFocus()
 	a.paletteView(c, k)
 	a.promptView(c, k)
 	a.confirmView(c, k)

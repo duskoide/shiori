@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -39,12 +41,20 @@ type App struct {
 	home    string
 	session string
 
-	win      *mygo.Window
+	win     *mygo.Window // main thread only; goroutines use invWin
+	focused bool         // the window has the keyboard focus
+
+	// What goroutines may touch: they wake the window with invalidate.
+	// invWin is the window once the first frame bound it, closed is set
+	// when it closed, and services (kept under postMu) are the frame's.
+	invWin   atomic.Pointer[mygo.Window]
+	closed   atomic.Bool
 	services ui.Services
-	focused  bool // the window has the keyboard focus
 
 	postMu sync.Mutex
 	posted []func()
+
+	saveTimer *time.Timer // the delayed write of settings.json, if one is due
 
 	// The connection to the core; nil while there is none.
 	client    *core.Client
@@ -69,7 +79,8 @@ type App struct {
 	pending   map[string]time.Time // terminals started here, not yet in a pane
 	spawning  map[string]int       // tabs whose terminals are starting here
 	gone      map[string]bool      // terminals whose panes were closed here
-	seenTurns map[string]uint64    // the herdr.seen this window last wrote
+	seenTurns map[string]uint64    // the herdr.seen this window wrote, once the core took it
+	seenBusy  map[string]time.Time // herdr.seen writes in flight or to retry, no new one before then
 
 	// What this window looks at, which the document does not keep.
 	activeSpace string
@@ -125,6 +136,7 @@ func newApp(home, session string) *App {
 		spawning:  map[string]int{},
 		gone:      map[string]bool{},
 		seenTurns: map[string]uint64{},
+		seenBusy:  map[string]time.Time{},
 		activeTab: map[string]string{},
 		focus:     map[string]string{},
 		history:   map[string][]string{},
@@ -188,11 +200,13 @@ func (a *App) loadKeys() {
 		return
 	}
 	km, err := keys.Parse(b)
+	if km != nil {
+		// The keymap holds the valid bindings even when others failed.
+		a.keymap = km
+	}
 	if err != nil {
 		a.notify("keys.json: " + err.Error())
-		return
 	}
-	a.keymap = km
 }
 
 // applyTheme resolves the chosen theme's tokens.
@@ -204,7 +218,14 @@ func (a *App) applyTheme() {
 	a.k = colorsFrom(theme.Resolve(p))
 	for _, pt := range a.terms {
 		pt.term.SetTheme(a.k.terminalTheme(), a.k.terminalTheme())
+		// The core answers color queries from the facts it was given.
+		_ = pt.stream.SetDisplay(a.display())
 	}
+}
+
+// display is the colors of the current theme, as the core wants them.
+func (a *App) display() core.Display {
+	return core.Display{FG: hexOf(a.k.terminalForeground), BG: hexOf(a.k.background), Cursor: hexOf(a.k.cursor)}
 }
 
 // post runs fn on the main thread with the next frame.
@@ -215,14 +236,70 @@ func (a *App) post(fn func()) {
 	a.invalidate()
 }
 
+// invalidate asks for a new frame. It may be called from any goroutine.
 func (a *App) invalidate() {
-	if a.win != nil {
-		a.win.Invalidate()
+	if a.closed.Load() {
 		return
 	}
-	a.services.Invalidate()
+	if w := a.invWin.Load(); w != nil {
+		w.Invalidate()
+		return
+	}
+	a.postMu.Lock()
+	s := a.services
+	a.postMu.Unlock()
+	s.Invalidate()
 }
 
+// bindWindow makes the window known to goroutines (main thread). It is
+// called with each frame until it takes, and sees to the window's end: no
+// invalidate after it closed, and the settings written.
+func (a *App) bindWindow(w *mygo.Window) {
+	if w == nil || a.invWin.Load() == w {
+		return
+	}
+	a.invWin.Store(w)
+	w.OnClosed(func() {
+		a.closed.Store(true)
+		a.flushSettings()
+	})
+}
+
+// setServices keeps the frame's services for invalidate.
+func (a *App) setServices(s ui.Services) {
+	a.postMu.Lock()
+	a.services = s
+	a.postMu.Unlock()
+}
+
+// settingsDelay is how long the write of settings.json waits for more
+// changes, as with the steps of a zoom.
+const settingsDelay = 500 * time.Millisecond
+
+// saveSettingsSoon writes settings.json after a short delay, one write for
+// all the changes made until then.
+func (a *App) saveSettingsSoon() {
+	if a.saveTimer != nil {
+		a.saveTimer.Reset(settingsDelay)
+		return
+	}
+	a.saveTimer = time.AfterFunc(settingsDelay, func() {
+		a.post(a.flushSettings)
+	})
+}
+
+// flushSettings writes the settings now if a delayed write is due.
+func (a *App) flushSettings() {
+	if a.saveTimer == nil {
+		return
+	}
+	a.saveTimer.Stop()
+	a.saveTimer = nil
+	a.saveSettings()
+}
+
+// runPosted runs the closures posted since the last frame. One that
+// panics is reported and does not stop the others.
 func (a *App) runPosted() {
 	for {
 		a.postMu.Lock()
@@ -233,9 +310,19 @@ func (a *App) runPosted() {
 			return
 		}
 		for _, fn := range fns {
-			fn()
+			a.runGuarded(fn)
 		}
 	}
+}
+
+// runGuarded runs fn, turning a panic into a message.
+func (a *App) runGuarded(fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.notify(fmt.Sprintf("internal error: %v", r))
+		}
+	}()
+	fn()
 }
 
 // toast is a short message over the window.
