@@ -119,12 +119,21 @@ type Settings struct {
 	Sidebar  *bool   `json:"sidebar,omitempty"`
 }
 
+// The terminals' text size: the default, and the range it keeps to.
+const (
+	defaultFontSize = 13
+	minFontSize     = 6
+	maxFontSize     = 40
+)
+
 func (s Settings) fontSize() float32 {
 	if s.FontSize <= 0 {
-		return 13
+		return defaultFontSize
 	}
-	return min(max(s.FontSize, 6), 40)
+	return clampFontSize(s.FontSize)
 }
+
+func clampFontSize(v float32) float32 { return min(max(v, minFontSize), maxFontSize) }
 
 func (s Settings) sidebarShown() bool { return s.Sidebar == nil || *s.Sidebar }
 

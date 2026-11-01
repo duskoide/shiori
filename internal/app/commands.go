@@ -421,7 +421,7 @@ func (a *App) cmdSpaceClose(v args) (any, error) {
 	}
 	if v.str("confirmed") != "true" && a.liveTerminals(s) > 0 {
 		id := s.ID
-		a.askConfirm(fmt.Sprintf("Close space %q?", a.spaceLabel(s)), "Its terminals end.", func() {
+		a.askConfirm(fmt.Sprintf("Close space %q?", a.spaceLabel(s)), endsText(a.liveTerminals(s), len(s.Tabs)), func() {
 			a.do("space.close", args{"id": id, "confirmed": true})
 		})
 		return nil, nil
@@ -472,7 +472,7 @@ func (a *App) cmdSpaceRename(v args) (any, error) {
 	}
 	if _, given := v["name"]; !given {
 		id := s.ID
-		a.askText("Rename space", s.Name, a.spaceLabel(s), func(name string) {
+		a.askText("Rename space", s.Name, a.spaceLabel(s), "Leave it empty to name the space after its folder.", func(name string) {
 			a.do("space.rename", args{"id": id, "name": name})
 		})
 		return nil, nil
@@ -601,7 +601,7 @@ func (a *App) cmdTabClose(v args) (any, error) {
 	}
 	if v.str("confirmed") != "true" && len(t.Panes()) > 1 {
 		id := t.ID
-		a.askConfirm(fmt.Sprintf("Close tab %q?", a.tabLabel(t)), fmt.Sprintf("Its %d terminals end.", len(t.Panes())), func() {
+		a.askConfirm(fmt.Sprintf("Close tab %q?", a.tabLabel(t)), endsText(len(t.Panes()), 1), func() {
 			a.do("tab.close", args{"id": id, "confirmed": true})
 		})
 		return nil, nil
@@ -623,7 +623,7 @@ func (a *App) cmdTabRename(v args) (any, error) {
 	}
 	if _, given := v["name"]; !given {
 		id := t.ID
-		a.askText("Rename tab", t.Name, a.tabLabel(t), func(name string) {
+		a.askText("Rename tab", t.Name, a.tabLabel(t), "Leave it empty to name the tab after its program.", func(name string) {
 			a.do("tab.rename", args{"id": id, "name": name})
 		})
 		return nil, nil
@@ -1102,12 +1102,31 @@ func (a *App) zoomBy(steps int) {
 	if steps == 0 {
 		a.cfg.FontSize = 0
 	} else {
-		a.cfg.FontSize = a.cfg.fontSize() + float32(steps)
+		a.cfg.FontSize = clampFontSize(a.cfg.fontSize() + float32(steps))
 	}
 	for _, pt := range a.terms {
 		pt.term.SetFont(a.termFont())
 	}
 	a.saveSettingsSoon()
+}
+
+// plural is a count of things: "1 agent", "3 agents".
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
+}
+
+// endsText says what closing panes does: "Its 3 terminals in 2 tabs end."
+func endsText(terminals, tabs int) string {
+	switch {
+	case terminals == 1:
+		return "Its terminal ends."
+	case tabs > 1:
+		return fmt.Sprintf("Its %s in %s end.", plural(terminals, "terminal", "terminals"), plural(tabs, "tab", "tabs"))
+	}
+	return fmt.Sprintf("Its %s end.", plural(terminals, "terminal", "terminals"))
 }
 
 // statusWord names an agent status for people.

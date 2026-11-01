@@ -1,8 +1,11 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/egoist/mygo/ui"
 
+	"github.com/duskoide/shiori/internal/agent"
 	"github.com/duskoide/shiori/internal/layout"
 	"github.com/duskoide/shiori/internal/programs"
 )
@@ -29,8 +32,17 @@ func (a *App) tabBar(c *ui.Context, k *colors) {
 				}
 			})
 		}
-		plus := iconButton(c, k, "plus", "New tab", 28, 16).Tooltip(withKeys("New tab", a.keysFor("tab.new")))
-		plus.PopoverMenu(func(m *ui.Menu) { a.newMenu(m) })
+		// A split button: + opens a terminal tab at once, the chevron
+		// (or a right click on +) offers the agents and a space.
+		ui.Row(c).Gap(0).AlignItems(ui.Center).Shrink(0).Children(func() {
+			plus := iconButton(c, k, "plus", "New tab", 28, 16).Tooltip(withKeys("New tab", a.keysFor("tab.new")))
+			plus.PopoverMenu(func(m *ui.Menu) { a.newMenu(m) })
+			if plus.Clicked() {
+				a.post(func() { a.doAction("tab.new", "") })
+			}
+			more := iconButton(c, k, "chevron-down", "New…", 16, 12).Height(28).Tooltip("Start an agent or a space")
+			more.PopoverMenuButton(func(m *ui.Menu) { a.newMenu(m) })
+		})
 		ui.Spacer(c)
 	})
 }
@@ -65,14 +77,13 @@ func toAny(ss []string) []any {
 func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layout.Tab) {
 	active := t.ID == a.activeTab[s.ID]
 	label := a.tabLabel(t)
-	if a.zoomed[t.ID] != "" {
-		label += " Z"
-	}
-	chip := ui.Row(c.Key(t.ID)).Height(29).Padding(0, 8, 0, 9).Gap(7).Radius(7).AlignItems(ui.Center).
+	zoomed := a.zoomed[t.ID] != ""
+	chip := ui.Row(c.Key(t.ID)).Height(29).Padding(0, 4, 0, 9).Gap(7).Radius(7).AlignItems(ui.Center).
 		Border(1, ui.Color{}).Cursor(ui.CursorPointer).Role(ui.RoleTab).Label("Tab " + label).Selected(active).Shrink(0)
+	hovered := chip.Hovered()
 	if active {
 		chip.Background(k.raised).Border(1, k.border)
-	} else if chip.Hovered() {
+	} else if hovered {
 		chip.Background(k.hover)
 	}
 	id := t.ID
@@ -113,11 +124,24 @@ func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layou
 			col = k.foreground
 		}
 		ui.Text(c, label).FontSize(12.8).TextColor(col).SingleLine().Ellipsis("…").MaxWidth(170)
+		if zoomed {
+			ui.Icon(c, glyph("maximize")).Size(11, 11).TextColor(k.accent).Tooltip("A pane of this tab is zoomed")
+		}
 		statusMark(c, k, a.tabWord(t), false)
-		if active {
-			if iconButton(c, k, "x", "Close tab", 18, 12).Clicked() {
-				a.post(func() { a.do("tab.close", args{"id": id}) })
-			}
+		// The close button keeps its place on every tab, so that tabs do
+		// not shift as the pointer moves over them; it shows on the active
+		// tab and the one under the pointer.
+		show := active || hovered
+		closeLabel := ""
+		if show {
+			closeLabel = "Close tab"
+		}
+		x := iconButton(c, k, "x", closeLabel, 18, 12).Opacity(map[bool]float32{true: 1, false: 0}[show]).IgnoreInput(!show)
+		if show {
+			x.Tooltip(withKeys("Close tab", a.keysFor("tab.close")))
+		}
+		if x.Clicked() {
+			a.post(func() { a.do("tab.close", args{"id": id}) })
 		}
 	})
 	if chip.Clicked() {
@@ -133,7 +157,7 @@ func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layou
 func (a *App) statusBar(c *ui.Context, k *colors) {
 	ui.Row(c).Height(statusHeight).Padding(0, 12).Gap(14).AlignItems(ui.Center).Shrink(0).
 		Background(k.chrome).BorderWidth(1, 0, 0, 0).BorderColor(k.border).Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 			dot := k.done
 			if !a.connected {
 				dot = k.blocked
@@ -144,26 +168,42 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 			if !a.connected {
 				name += " · disconnected"
 			}
-			ui.Text(c, name).FontSize(11.5).TextColor(k.muted)
+			ui.Text(c, name).FontSize(11.5).TextColor(k.muted).SingleLine()
 		})
 		list := a.agents()
 		if len(list) > 0 {
-			blocked := 0
+			var waiting []string // the panes of the agents that need the person
 			for _, e := range list {
-				if statusWord(e.word) == "Needs you" {
-					blocked++
+				if e.word == agent.Blocked {
+					waiting = append(waiting, e.pane)
 				}
 			}
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				ui.Textf(c, "%d agents", len(list)).FontSize(11.5).TextColor(k.muted)
-				if blocked > 0 {
-					ui.Textf(c, "· %d needs you", blocked).FontSize(11.5).TextColor(k.blocked)
+			ui.Row(c).Gap(4).AlignItems(ui.Center).MinWidth(0).Shrink(1).ClipX().Children(func() {
+				ui.Text(c, plural(len(list), "agent", "agents")).FontSize(11.5).TextColor(k.muted).SingleLine()
+				if n := len(waiting); n > 0 {
+					verb := "need"
+					if n == 1 {
+						verb = "needs"
+					}
+					need := ui.Text(c, fmt.Sprintf("· %d %s you", n, verb)).FontSize(11.5).TextColor(k.blocked).SingleLine().
+						Cursor(ui.CursorPointer).Role(ui.RoleButton).Tooltip("Go to the agent that needs you")
+					if need.Clicked() {
+						pane := waiting[0]
+						a.post(func() { a.show(pane) })
+					}
 				}
 			})
 		}
 		ui.Spacer(c)
 		if keys := a.keysFor("app.palette"); keys != "" {
-			ui.Text(c, keys+"  commands").FontSize(11.5).TextColor(k.dim)
+			hint := ui.Text(c, keys+"  commands").FontSize(11.5).TextColor(k.dim).SingleLine().Shrink(0).
+				Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Command palette")
+			if hint.Hovered() {
+				hint.TextColor(k.muted)
+			}
+			if hint.Clicked() {
+				a.post(func() { a.doAction("app.palette", "") })
+			}
 		}
 	})
 }

@@ -20,6 +20,7 @@ const (
 	paneRadius     = 10
 	sidebarRowH    = 30
 	sidebarFooterH = 69
+	sidebarGrip    = 5 // the width the sidebar's edge can be caught by
 )
 
 // colors are the theme's tokens as the interface paints them.

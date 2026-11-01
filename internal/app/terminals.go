@@ -82,7 +82,7 @@ func (a *App) zoomSteps(z terminal.Zoom) {
 	case z.Reset:
 		a.cfg.FontSize = 0
 	case z.Steps != 0:
-		a.cfg.FontSize = a.cfg.fontSize() + float32(z.Steps)
+		a.cfg.FontSize = clampFontSize(a.cfg.fontSize() + float32(z.Steps))
 	default:
 		return
 	}

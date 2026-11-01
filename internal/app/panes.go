@@ -172,7 +172,11 @@ func (a *App) paneCard(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node, 
 			}
 			pt := a.termFor(c, p.Content.Terminal)
 			if pt == nil {
-				ui.Text(c, "Attaching…").FontSize(12).TextColor(k.dim).Padding(12)
+				msg := "Attaching…"
+				if a.client == nil {
+					msg = "Waiting for herdr-core… The terminal keeps running there."
+				}
+				ui.Text(c, msg).FontSize(12).TextColor(k.dim).Padding(12)
 				return
 			}
 			tv := terminal.View(c, pt.term).Fill()
@@ -232,8 +236,25 @@ func (a *App) paneHeader(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node
 			if ok {
 				statusMark(c, k, a.word(rec), true)
 			}
+			if a.zoomed[t.ID] == paneID {
+				if n := len(t.Panes()); n > 1 {
+					// What the zoom hides, and the way back.
+					pill := ui.Row(c).Padding(1, 7).Radius(9).Background(k.accent.Alpha(0.14)).Shrink(0).
+						Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Unzoom").Tooltip(withKeys("Show all panes", a.keysFor("pane.zoom")))
+					if pill.Hovered() {
+						pill.Background(k.accent.Alpha(0.24))
+					}
+					pill.Children(func() {
+						ui.Textf(c, "Zoomed · 1 of %d panes", n).FontSize(11).FontWeight(600).TextColor(k.accent).SingleLine()
+					})
+					if pill.Clicked() {
+						a.post(func() { a.do("pane.zoom", args{"pane": paneID}) })
+					}
+				}
+			}
 		})
-		ui.Row(c).Gap(1).AlignItems(ui.Center).Shrink(0).Opacity(map[bool]float32{true: 1, false: 0}[showButtons]).Children(func() {
+		// Hidden buttons keep their place and take no clicks.
+		ui.Row(c).Gap(1).AlignItems(ui.Center).Shrink(0).Opacity(map[bool]float32{true: 1, false: 0}[showButtons]).IgnoreInput(!showButtons).Children(func() {
 			if iconButton(c, k, "split-right", "Split right", 22, 13).Tooltip(withKeys("Split right", a.keysFor("pane.split:right"))).Clicked() {
 				a.post(func() { a.do("pane.split", args{"direction": "right", "pane": paneID}) })
 			}
