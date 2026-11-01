@@ -17,6 +17,7 @@ func (a *App) start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.stop = cancel
 	go a.connectLoop(ctx)
+	go a.watchConfig(ctx)
 }
 
 // shutdown detaches every terminal and closes the connection; the
