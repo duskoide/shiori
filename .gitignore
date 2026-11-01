@@ -1,0 +1,8 @@
+/build/
+/.mygo/
+mygo_windows_*.syso
+/.research/
+/herdr-mygo
+*.test
+*.out
+coverage.*

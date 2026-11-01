@@ -1,0 +1,16 @@
+herdr-mygo
+Copyright 2026 herdr-mygo contributors
+
+A desktop client for herdr-core written in Go with the MyGo framework.
+It is an independent re-implementation of the Herdr desktop app
+(https://github.com/herdrdev/herdr-app, Apache License 2.0). The
+behaviour, wire protocol usage, default key bindings
+(internal/keys/default_keys.json) and program table
+(internal/programs/programs.json) follow that project.
+
+Bundled third-party assets (internal/programs/icons):
+- Lucide icons (https://lucide.dev), ISC License, with MIT-licensed
+  Feather-derived icons. See internal/programs/icons/LICENSE-Lucide.txt.
+- Simple Icons (https://simpleicons.org), CC0 1.0.
+- LobeHub icons (MIT). See internal/programs/icons/LICENSE-LobeHub.txt.
+Brand marks are trademarks of their owners.

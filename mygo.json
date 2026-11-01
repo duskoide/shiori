@@ -1,0 +1,12 @@
+{
+  "name": "Herdr MyGo",
+  "identifier": "dev.duskoide.herdr-mygo",
+  "version": "0.1.0",
+  "out": "build",
+  "linux": {
+    "webview": false
+  },
+  "macos": {
+    "minimumSystemVersion": "13.0"
+  }
+}
