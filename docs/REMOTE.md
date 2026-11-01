@@ -1,6 +1,6 @@
 # Remote machines — plan
 
-Status: plan, not built; phase 0 done (below). Branch `remote-machines`
+Status: phases 0 and 1 done (below). Branch `remote-machines`
 (from `main` at `0a8c145`). Reference: herdr-app, public at
 https://github.com/herdrdev/herdr-app (clone it with `git clone --depth 1`).
 
@@ -240,7 +240,8 @@ machine leaves the list, its spaces go from the window.
 
 0. **Learn how machines are managed.** Done: herdr-app uses the `hc`
    command (above).
-1. **Core side.**
+1. **Core side.** Done: `Change.DocMachines` and `DocChanged`;
+   `core.HC` in `internal/core/hc.go`, with `AddNeedsPerson`.
    - `core.Change.DocMachines`, from doc events' `machine`.
    - An `hc` runner: find the binary, run `hc … --json` with a timeout,
      decode results and `{error:{kind,message}}`. Helpers `MachineList`,

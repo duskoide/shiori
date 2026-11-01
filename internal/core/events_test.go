@@ -488,3 +488,57 @@ func TestEventsClose(t *testing.T) {
 		t.Fatal("Changes not closed")
 	}
 }
+
+func TestEventsDocMachines(t *testing.T) {
+	e := newTestEvents(t, snapshot(), 10)
+	feed := func(line string) {
+		e.mu.Lock()
+		e.feedLocked([]byte(line + "\n"))
+		e.mu.Unlock()
+	}
+	// A doc event names its machine in its params, or in its data, or
+	// none: this machine.
+	feed(`{"method":"event","params":{"seq":11,"type":"doc","machine":"mac","data":{"name":"herdr-app"}}}`)
+	feed(`{"method":"event","params":{"seq":12,"type":"doc","data":{"name":"herdr-app","machine":"box"}}}`)
+	feed(`{"method":"event","params":{"seq":13,"type":"doc","data":{"name":"herdr-app"}}}`)
+	var got Change
+	for !(got.DocMachines["mac"] && got.DocMachines["box"] && got.DocMachines[""]) {
+		got.merge(waitChange(t, e))
+	}
+	if !got.DocChanged("mac") || !got.DocChanged("") || got.DocChanged("other") {
+		t.Fatalf("%+v", got)
+	}
+
+	// Missed events: every machine's document.
+	feed(`{"method":"missed","params":{"seq":20,"terminals":[]}}`)
+	ch := waitChange(t, e)
+	if !ch.Docs || ch.DocMachines != nil || !ch.DocChanged("anything") {
+		t.Fatalf("%+v", ch)
+	}
+}
+
+func TestChangeMergeDocMachines(t *testing.T) {
+	one := func(m string) Change { return Change{Docs: true, DocMachines: map[string]bool{m: true}} }
+	var c Change
+	c.merge(Change{Terminals: true})
+	if c.Docs || c.DocChanged("") {
+		t.Fatalf("%+v", c)
+	}
+	src := one("mac")
+	c.merge(src)
+	c.merge(one("box"))
+	if len(src.DocMachines) != 1 {
+		t.Fatal("merge changed its argument's map")
+	}
+	if !c.DocChanged("mac") || !c.DocChanged("box") || c.DocChanged("") {
+		t.Fatalf("%+v", c)
+	}
+	c.merge(Change{Docs: true}) // every machine's
+	if c.DocMachines != nil || !c.DocChanged("") {
+		t.Fatalf("%+v", c)
+	}
+	c.merge(one("mac")) // still every machine's
+	if c.DocMachines != nil {
+		t.Fatalf("%+v", c)
+	}
+}

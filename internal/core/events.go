@@ -221,6 +221,7 @@ func (e *Events) feedLocked(p []byte) {
 type eventParams struct {
 	Seq       uint64          `json:"seq"`
 	Type      string          `json:"type"`
+	Machine   string          `json:"machine"`
 	Terminal  string          `json:"terminal"`
 	Data      json.RawMessage `json:"data"`
 	Terminals []Terminal      `json:"terminals"`
@@ -292,12 +293,25 @@ func (e *Events) upsertLocked(t Terminal) {
 	}
 }
 
+// docMachine is the machine whose document a doc event is about: the
+// event's "machine", else its data's, else this one ("").
+func docMachine(p eventParams) string {
+	if p.Machine != "" {
+		return p.Machine
+	}
+	var d struct {
+		Machine string `json:"machine"`
+	}
+	json.Unmarshal(p.Data, &d)
+	return d.Machine
+}
+
 // applyLocked applies one event to the snapshot.
 func (e *Events) applyLocked(p eventParams) Change {
 	changed := Change{Terminals: true}
 	switch p.Type {
 	case "doc":
-		return Change{Docs: true}
+		return Change{Docs: true, DocMachines: map[string]bool{docMachine(p): true}}
 	case "created", "restarted":
 		var t Terminal
 		if json.Unmarshal(p.Data, &t) != nil || t.Address == "" {
