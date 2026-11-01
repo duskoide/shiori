@@ -54,7 +54,10 @@ Commands herdr-app has but this app does not implement answer
 
 `$SHIORI_HOME` (default `~/.config/shiori`) holds
 `settings.json`, `keys.json` and the control socket. Files of the
-app's earlier name, `~/.config/herdr-mygo`, move there on first start. `HC_SESSION`
+app's earlier name, `~/.config/herdr-mygo`, move there on first start. The window reads
+`settings.json` and `keys.json` again when they change (within about
+half a second), or on `shiori do app.reload`; a file that does not parse
+keeps what was in use. `HC_SESSION`
 selects the herdr-core session.
 
 ## Layout of the code
