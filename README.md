@@ -1,10 +1,12 @@
-# herdr-mygo
+<p align="center"><img src="resources/logo.svg" width="128" alt="栞"></p>
 
-A desktop app for terminals and coding agents, written in Go with the
+# Shiori 栞
+
+*Shiori* (栞) is Japanese for a bookmark. It is a desktop app for terminals and coding agents, written in Go with the
 [MyGo](https://github.com/egoist/mygo) native UI. It is a re-implementation
 of [Herdr](https://github.com/herdrdev/herdr-app) and uses the same backend,
 **herdr-core**: terminals run in the core and survive the window, and the
-layout lives in the core's `herdr-app` document, so herdr-mygo and
+layout lives in the core's `herdr-app` document, so Shiori and
 herdr-app can show the same spaces side by side.
 
 ## Features
@@ -17,7 +19,7 @@ herdr-app can show the same spaces side by side.
 - Command palette, rename and confirm dialogs, settings, theme presets
 - herdr-app's default key bindings (`keys.json` overrides them)
 - A control CLI compatible with herdr-app's
-  (`herdr-mygo do tab.new --argv '["claude"]' --task "..."`)
+  (`shiori do tab.new --argv '["claude"]' --task "..."`)
 
 ## Requirements
 
@@ -28,7 +30,7 @@ herdr-app can show the same spaces side by side.
 ## Build and run
 
 ```sh
-make build      # ./herdr-mygo
+make build      # ./shiori
 make run
 make check      # vet, tests, gofmt (what CI runs)
 make package    # platform package via mygo build
@@ -39,10 +41,10 @@ make package    # platform package via mygo build
 With the window open:
 
 ```sh
-herdr-mygo ls                       # spaces, tabs and panes
-herdr-mygo commands                 # every command and its arguments
-herdr-mygo do pane.split --direction right
-herdr-mygo do space.new --name api --folder ~/src/api
+shiori ls                       # spaces, tabs and panes
+shiori commands                 # every command and its arguments
+shiori do pane.split --direction right
+shiori do space.new --name api --folder ~/src/api
 ```
 
 Commands herdr-app has but this app does not implement answer
@@ -50,8 +52,9 @@ Commands herdr-app has but this app does not implement answer
 
 ## Files
 
-`$HERDR_MYGO_HOME` (default `~/.config/herdr-mygo`) holds
-`settings.json`, `keys.json` and the control socket. `HC_SESSION`
+`$SHIORI_HOME` (default `~/.config/shiori`) holds
+`settings.json`, `keys.json` and the control socket. Files of the
+app's earlier name, `~/.config/herdr-mygo`, move there on first start. `HC_SESSION`
 selects the herdr-core session.
 
 ## Layout of the code
@@ -65,16 +68,17 @@ selects the herdr-core session.
 | `internal/theme`, `internal/programs`, `internal/keys` | themes, program table and icons, key bindings |
 | `docs/PROTOCOL.md` | notes on the core's wire protocol |
 | `docs/CONTRACTS.md` | the packages' public APIs |
+| `resources/`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
 
 ## Tests
 
 `go test ./...` runs the unit tests. The integration test drives the
 real window headlessly against an isolated core session
-(`HC_SESSION=herdr-mygo-it`):
+(`HC_SESSION=shiori-it`):
 
 ```sh
 CGO_ENABLED=0 go test -c -o /tmp/hm.test .
-HERDR_MYGO_IT=1 HERDR_MYGO_SHOTS=/tmp/shots /tmp/hm.test -test.run TestIntegration -test.v
+SHIORI_IT=1 SHIORI_SHOTS=/tmp/shots /tmp/hm.test -test.run TestIntegration -test.v
 ```
 
 ## License

@@ -6,8 +6,8 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/keys"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/keys"
 )
 
 // paneTerm is a terminal of the core shown in a pane: a local emulator fed

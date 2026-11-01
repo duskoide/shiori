@@ -1,4 +1,4 @@
-module github.com/duskoide/herdr-mygo
+module github.com/duskoide/shiori
 
 go 1.27.3
 

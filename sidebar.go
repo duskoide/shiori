@@ -7,8 +7,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/agent"
-	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/shiori/internal/agent"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // sidebar is the brand, the spaces and agents lists, and the footer.
@@ -27,7 +27,7 @@ func (a *App) sidebar(c *ui.Context, k *colors) {
 func (a *App) brand(c *ui.Context, k *colors) {
 	ui.Row(c).Height(brandHeight).Padding(0, 8, 0, 14).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
 		ui.Icon(c, glyph("logo")).Size(20, 20).TextColor(k.accent)
-		ui.Text(c, "Herdr").FontSize(14).FontWeight(600).TextColor(k.foreground)
+		ui.Text(c, "Shiori").FontSize(14).FontWeight(600).TextColor(k.foreground)
 		ui.Spacer(c)
 		if iconButton(c, k, "search", "Search", 28, 15).Tooltip(withKeys("Search", a.keysFor("mod.open:picker"))).Clicked() {
 			a.post(func() { a.doAction("mod.open", "picker") })

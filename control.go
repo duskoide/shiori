@@ -19,7 +19,7 @@ var answerTimeout = 5 * time.Second
 // maxRequest is the longest request line the control socket reads.
 const maxRequest = 1 << 20
 
-// The control socket lets "herdr-mygo ls|status|do" and agents talk to
+// The control socket lets "shiori ls|status|do" and agents talk to
 // the running window: one JSON request line, one JSON reply line.
 
 // request is a line sent to the control socket.
@@ -31,7 +31,7 @@ type request struct {
 	Raise  bool           `json:"raise,omitempty"`
 }
 
-func socketPath(home string) string { return filepath.Join(home, "herdr-mygo.sock") }
+func socketPath(home string) string { return filepath.Join(home, "shiori.sock") }
 
 // listen serves the control socket until the app quits.
 func (a *App) listen() (net.Listener, error) {
@@ -45,7 +45,7 @@ func (a *App) listen() (net.Listener, error) {
 	path := socketPath(a.home)
 	if conn, err := net.DialTimeout("unix", path, time.Second); err == nil {
 		conn.Close()
-		return nil, errors.New("another herdr-mygo window uses " + a.home)
+		return nil, errors.New("another shiori window uses " + a.home)
 	}
 	os.Remove(path)
 	l, err := net.Listen("unix", path)
@@ -232,7 +232,7 @@ func (a *App) statusReport() any {
 func ask(home string, req request) (json.RawMessage, error) {
 	conn, err := net.DialTimeout("unix", socketPath(home), 2*time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("no herdr-mygo window is running (%s)", home)
+		return nil, fmt.Errorf("no shiori window is running (%s)", home)
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(15 * time.Second))

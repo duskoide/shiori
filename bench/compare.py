@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Compare herdr-app and herdr-mygo: startup, memory, idle CPU and output throughput.
+"""Compare herdr-app and shiori: startup, memory, idle CPU and output throughput.
 
 Each run uses its own app home and its own herdr-core session (started before the
 app, so startup measures the app only). The user's real sessions are not touched.
 
-    python3 bench/compare.py [runs] [--json out.json] [--only herdr-mygo]
-    HERDR_MYGO_BIN=/path/to/build picks another herdr-mygo binary.
+    python3 bench/compare.py [runs] [--json out.json] [--only shiori]
+    SHIORI_BIN=/path/to/build picks another shiori binary.
 """
 import json, os, shutil, statistics, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APPS = {
     "herdr-app": {"bin": shutil.which("herdr-app") or os.path.expanduser("~/.local/bin/herdr-app"), "home": "HERDR_APP_HOME"},
-    "herdr-mygo": {"bin": os.environ.get("HERDR_MYGO_BIN") or os.path.join(HERE, "..", "herdr-mygo"), "home": "HERDR_MYGO_HOME"},
+    "shiori": {"bin": os.environ.get("SHIORI_BIN") or os.path.join(HERE, "..", "shiori"), "home": "SHIORI_HOME"},
 }
 TICK = os.sysconf("SC_CLK_TCK")
 FLOOD_ONE = 2_000_000   # lines printed into one pane
@@ -186,7 +186,7 @@ class Run:
         r["size_1pane"] = self.size(one[0])
         # a 2x2 grid
         t = time.monotonic()
-        # wait for each new terminal: herdr-mygo replies before the pane exists
+        # wait for each new terminal: shiori replies before the pane exists
         self.ctl("do", "pane.split", "--direction", "right")
         self.wait_terminals(2)
         self.ctl("do", "pane.split", "--direction", "down")

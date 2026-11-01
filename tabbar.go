@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/layout"
-	"github.com/duskoide/herdr-mygo/internal/programs"
+	"github.com/duskoide/shiori/internal/layout"
+	"github.com/duskoide/shiori/internal/programs"
 )
 
 // programTileInfo is what a program tile shows.

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // start connects to the core in the background, and again whenever the

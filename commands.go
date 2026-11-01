@@ -15,14 +15,14 @@ import (
 
 	"github.com/egoist/mygo"
 
-	"github.com/duskoide/herdr-mygo/internal/agent"
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/layout"
-	"github.com/duskoide/herdr-mygo/internal/theme"
+	"github.com/duskoide/shiori/internal/agent"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
+	"github.com/duskoide/shiori/internal/theme"
 )
 
 // command is something the person or an agent can do: keys, menus, the
-// palette and "herdr-mygo do" all run commands by name, as herdr-app's.
+// palette and "shiori do" all run commands by name, as herdr-app's.
 type command struct {
 	Name   string   `json:"name"`
 	Title  string   `json:"title"`

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // fakeBackend is a backend that records what the app asks of it.

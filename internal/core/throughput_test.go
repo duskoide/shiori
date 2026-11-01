@@ -11,11 +11,11 @@ import (
 )
 
 // TestIntegrationThroughput measures how fast a Stream drains a flood of
-// output from a real, isolated core (session herdr-mygo-tp), with no
-// rendering. Skipped unless HERDR_MYGO_IT=1.
+// output from a real, isolated core (session shiori-tp), with no
+// rendering. Skipped unless SHIORI_IT=1.
 func TestIntegrationThroughput(t *testing.T) {
-	if os.Getenv("HERDR_MYGO_IT") != "1" {
-		t.Skip("set HERDR_MYGO_IT=1 to run against a real core")
+	if os.Getenv("SHIORI_IT") != "1" {
+		t.Skip("set SHIORI_IT=1 to run against a real core")
 	}
 	bin, err := FindBinary("")
 	if err != nil {
@@ -25,7 +25,7 @@ func TestIntegrationThroughput(t *testing.T) {
 		t.Setenv(k, "")
 		os.Unsetenv(k)
 	}
-	const session = "herdr-mygo-tp"
+	const session = "shiori-tp"
 	t.Setenv("HC_SESSION", session)
 	hc := func(args ...string) string {
 		out, err := exec.Command(bin, args...).CombinedOutput()

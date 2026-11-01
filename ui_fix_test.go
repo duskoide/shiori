@@ -12,8 +12,8 @@ import (
 
 	"github.com/egoist/mygo/plugins/terminal"
 
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // labelBackend is a backend that only takes labels.

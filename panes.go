@@ -4,7 +4,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // tabContent lays out a tab's panes, or the one zoomed.

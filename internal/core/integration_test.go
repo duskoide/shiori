@@ -10,14 +10,14 @@ import (
 	"time"
 )
 
-const itSession = "herdr-mygo-it"
+const itSession = "shiori-it"
 
 // TestIntegrationRealCore runs against a real, isolated core (session
-// herdr-mygo-it). It is skipped unless HERDR_MYGO_IT=1 and never touches the
+// shiori-it). It is skipped unless SHIORI_IT=1 and never touches the
 // default session.
 func TestIntegrationRealCore(t *testing.T) {
-	if os.Getenv("HERDR_MYGO_IT") != "1" {
-		t.Skip("set HERDR_MYGO_IT=1 to run against a real core")
+	if os.Getenv("SHIORI_IT") != "1" {
+		t.Skip("set SHIORI_IT=1 to run against a real core")
 	}
 	bin, err := FindBinary("")
 	if err != nil {
@@ -60,7 +60,7 @@ func TestIntegrationRealCore(t *testing.T) {
 	}
 	defer ev.Close()
 
-	addr, err := c.Run(ctx, RunParams{Argv: []string{"sh", "-c", "echo herdr-mygo-ready; exec cat"}, Labels: map[string]string{"herdr.seen": "0"}})
+	addr, err := c.Run(ctx, RunParams{Argv: []string{"sh", "-c", "echo shiori-ready; exec cat"}, Labels: map[string]string{"herdr.seen": "0"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestIntegrationRealCore(t *testing.T) {
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
-		for !bytes.Contains(seen.Bytes(), []byte("herdr-mygo-ready")) || !bytes.Contains(seen.Bytes(), []byte("ping-from-it")) {
+		for !bytes.Contains(seen.Bytes(), []byte("shiori-ready")) || !bytes.Contains(seen.Bytes(), []byte("ping-from-it")) {
 			n, err := s.Read(buf)
 			seen.Write(buf[:n])
 			if err != nil {
@@ -119,7 +119,7 @@ func TestIntegrationRealCore(t *testing.T) {
 	if err := c.Kill(ctx, addr); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := c.DocGet(ctx, "herdr-mygo-it", ""); err != nil {
+	if _, _, err := c.DocGet(ctx, "shiori-it", ""); err != nil {
 		t.Fatal(err)
 	}
 }

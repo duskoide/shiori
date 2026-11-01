@@ -2,7 +2,7 @@
 /.mygo/
 mygo_windows_*.syso
 /.research/
-/herdr-mygo
+/shiori
 *.test
 *.out
 coverage.*

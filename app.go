@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -13,10 +14,10 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/keys"
-	"github.com/duskoide/herdr-mygo/internal/layout"
-	"github.com/duskoide/herdr-mygo/internal/theme"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/keys"
+	"github.com/duskoide/shiori/internal/layout"
+	"github.com/duskoide/shiori/internal/theme"
 )
 
 // docName is the core document the layout lives in: the one herdr-app
@@ -153,17 +154,36 @@ func newApp(home, session string) *App {
 	return a
 }
 
-// defaultHome is where the app keeps its files: $HERDR_MYGO_HOME, else
-// ~/.config/herdr-mygo.
+// defaultHome is where the app keeps its files: $SHIORI_HOME, else
+// ~/.config/shiori.
 func defaultHome() string {
-	if h := os.Getenv("HERDR_MYGO_HOME"); h != "" {
+	if h := os.Getenv("SHIORI_HOME"); h != "" {
 		return h
 	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = os.TempDir()
 	}
-	return filepath.Join(dir, "herdr-mygo")
+	home := filepath.Join(dir, "shiori")
+	migrateHome(filepath.Join(dir, "herdr-mygo"), home)
+	return home
+}
+
+// migrateHome moves the files of the app's earlier name (herdr-mygo) to
+// home, once, unless a window of that version still runs from them.
+func migrateHome(old, home string) {
+	if _, err := os.Stat(home); err == nil {
+		return
+	}
+	if _, err := os.Stat(old); err != nil {
+		return
+	}
+	if c, err := net.Dial("unix", filepath.Join(old, "herdr-mygo.sock")); err == nil {
+		c.Close()
+		return
+	}
+	os.Remove(filepath.Join(old, "herdr-mygo.sock"))
+	_ = os.Rename(old, home)
 }
 
 func (a *App) loadSettings() {

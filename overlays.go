@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/theme"
+	"github.com/duskoide/shiori/internal/theme"
 )
 
 // paletteState is the command palette: every command, and every space

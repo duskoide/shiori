@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/layout"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
 )
 
 // fakeCore is a backend whose document and terminals the test controls.

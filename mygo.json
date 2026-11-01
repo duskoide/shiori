@@ -1,6 +1,6 @@
 {
-  "name": "Herdr MyGo",
-  "identifier": "dev.duskoide.herdr-mygo",
+  "name": "Shiori",
+  "identifier": "dev.duskoide.shiori",
   "version": "0.1.0",
   "out": "build",
   "linux": {

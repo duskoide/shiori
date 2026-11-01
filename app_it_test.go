@@ -14,11 +14,11 @@ import (
 )
 
 // TestIntegration drives the whole window against a real, isolated
-// herdr-core session (HC_SESSION=herdr-mygo-it). It is skipped unless
-// HERDR_MYGO_IT=1; HERDR_MYGO_SHOTS=<dir> saves screenshots.
+// herdr-core session (HC_SESSION=shiori-it). It is skipped unless
+// SHIORI_IT=1; SHIORI_SHOTS=<dir> saves screenshots.
 func TestIntegration(t *testing.T) {
-	if os.Getenv("HERDR_MYGO_IT") != "1" {
-		t.Skip("set HERDR_MYGO_IT=1 to run against a real herdr-core")
+	if os.Getenv("SHIORI_IT") != "1" {
+		t.Skip("set SHIORI_IT=1 to run against a real herdr-core")
 	}
 	// LD_LIBRARY_PATH may point the test binary at system GUI libraries;
 	// the loader has read it already, and the core's shells must not see it.
@@ -26,13 +26,13 @@ func TestIntegration(t *testing.T) {
 		t.Setenv(k, "")
 		os.Unsetenv(k)
 	}
-	t.Setenv("HC_SESSION", "herdr-mygo-it")
+	t.Setenv("HC_SESSION", "shiori-it")
 	t.Cleanup(func() { exec.Command("hc", "server", "stop").Run() })
 	if err := terminal.Load(); err != nil {
 		t.Skip("no libghostty-vt:", err)
 	}
 
-	a := newApp(t.TempDir(), "herdr-mygo-it")
+	a := newApp(t.TempDir(), "shiori-it")
 	tt := ui.NewTester(a.view, 1280, 800)
 	a.start()
 	t.Cleanup(a.shutdown)
@@ -50,8 +50,8 @@ func TestIntegration(t *testing.T) {
 	waitFor(t, tt, "a terminal", func() bool { p := a.pane(); return p != nil && a.terms[p.Content.Terminal] != nil })
 	pt := a.terms[a.pane().Content.Terminal]
 	waitFor(t, tt, "a prompt", func() bool { return strings.TrimSpace(pt.term.Text()) != "" })
-	pt.term.Send([]byte("echo herdr-mygo-$((40+2))\r"))
-	waitFor(t, tt, "the echo", func() bool { return strings.Contains(pt.term.Text(), "herdr-mygo-42") })
+	pt.term.Send([]byte("echo shiori-$((40+2))\r"))
+	waitFor(t, tt, "the echo", func() bool { return strings.Contains(pt.term.Text(), "shiori-42") })
 	shot(t, tt, "02-terminal")
 
 	if _, err := a.do("pane.split", args{"direction": "right"}); err != nil {
@@ -154,7 +154,7 @@ func settle(tt *ui.Tester) {
 }
 
 func shot(t *testing.T, tt *ui.Tester, name string) {
-	dir := os.Getenv("HERDR_MYGO_SHOTS")
+	dir := os.Getenv("SHIORI_SHOTS")
 	if dir == "" {
 		return
 	}

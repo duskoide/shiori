@@ -1,12 +1,22 @@
 package main
 
 import (
+	_ "embed"
 	"sync"
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/programs"
+	"github.com/duskoide/shiori/internal/programs"
 )
+
+// logoMark is the app's mark, 栞 (shiori, a bookmark), in the text color;
+// iconPNG the app icon. tools/logo/make_logo.py draws both.
+//
+//go:embed resources/mark.svg
+var logoMark string
+
+//go:embed resources/icon.png
+var iconPNG []byte
 
 // glyphSources are the interface's own icons: simple 24×24 strokes drawn
 // in the text color.
@@ -25,7 +35,7 @@ var glyphSources = map[string]string{
 	"command":     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>`,
 	"pin":         `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M8 3h8l-1 6 3 4H6l3-4z"/></svg>`,
 	"sort":        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg>`,
-	"logo":        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V6M20 18V6M4 12h16"/><circle cx="12" cy="12" r="2.5"/></svg>`,
+	"logo":        logoMark,
 }
 
 var (

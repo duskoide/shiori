@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duskoide/herdr-mygo/internal/agent"
-	"github.com/duskoide/herdr-mygo/internal/core"
-	"github.com/duskoide/herdr-mygo/internal/layout"
-	"github.com/duskoide/herdr-mygo/internal/programs"
+	"github.com/duskoide/shiori/internal/agent"
+	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
+	"github.com/duskoide/shiori/internal/programs"
 )
 
 // fixView keeps what the window looks at pointing at things that exist.

@@ -1,4 +1,4 @@
-// Command herdr-mygo is a desktop app for terminals and coding agents: a
+// Command shiori is a desktop app for terminals and coding agents: a
 // client of herdr-core, built with MyGo's native UI.
 package main
 
@@ -18,25 +18,25 @@ import (
 // version is set at build time with -ldflags "-X main.version=…".
 var version = "0.1.0-dev"
 
-const usage = `herdr-mygo - a desktop app for terminals and coding agents (herdr-core client)
+const usage = `shiori - a desktop app for terminals and coding agents (herdr-core client)
 
 Usage:
-  herdr-mygo                     open the window
-  herdr-mygo ls                  spaces, tabs and panes of the open window
-  herdr-mygo status              connection, focus and overlays of the open window
-  herdr-mygo commands            every command and its arguments, as JSON
-  herdr-mygo do <cmd> [--k v ...|'{json}']
+  shiori                     open the window
+  shiori ls                  spaces, tabs and panes of the open window
+  shiori status              connection, focus and overlays of the open window
+  shiori commands            every command and its arguments, as JSON
+  shiori do <cmd> [--k v ...|'{json}']
                                  run a command in the open window
-  herdr-mygo --version | --help
+  shiori --version | --help
 
 Environment:
-  HERDR_MYGO_HOME   the app's files (default ~/.config/herdr-mygo)
+  SHIORI_HOME   the app's files (default ~/.config/shiori)
   HC_SESSION        the herdr-core session to use (default "default")
 `
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "herdr-mygo:", err)
+		fmt.Fprintln(os.Stderr, "shiori:", err)
 		os.Exit(1)
 	}
 }
@@ -51,7 +51,7 @@ func run(argv []string, out io.Writer) error {
 		fmt.Fprint(out, usage)
 		return nil
 	case "-V", "--version", "version":
-		fmt.Fprintln(out, "herdr-mygo", version)
+		fmt.Fprintln(out, "shiori", version)
 		return nil
 	case "commands":
 		return printJSON(out, commands)
@@ -61,7 +61,7 @@ func run(argv []string, out io.Writer) error {
 		return printReply(out, home, request{Status: true})
 	case "do":
 		if len(argv) < 2 {
-			return fmt.Errorf("do needs a command; see herdr-mygo commands")
+			return fmt.Errorf("do needs a command; see shiori commands")
 		}
 		v, err := parseArgs(argv[2:])
 		if err != nil {
@@ -135,7 +135,7 @@ func openWindow(home string) error {
 	defer l.Close()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:           "Herdr",
+			Title:           "Shiori",
 			Width:           1280,
 			Height:          820,
 			MinWidth:        640,
@@ -145,6 +145,7 @@ func openWindow(home string) error {
 			BackgroundColor: hexOf(a.k.canvas),
 			Content:         ui.View(a.view),
 		})
+		_ = a.win.SetIcon(iconPNG) // packages carry it too; this covers go run and plain builds
 		a.win.OnClosed(func() {
 			a.shutdown()
 			a.win = nil

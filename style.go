@@ -4,7 +4,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
-	"github.com/duskoide/herdr-mygo/internal/theme"
+	"github.com/duskoide/shiori/internal/theme"
 )
 
 // Sizes of the window's regions, in DIPs, as the Herdr layout has them.
