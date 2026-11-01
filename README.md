@@ -18,8 +18,11 @@ herdr-app can show the same spaces side by side.
   and status bar, with herdr.seen read tracking
 - Command palette, rename and confirm dialogs, theme presets
 - A settings panel (`Ctrl+,`) for everything in `settings.json` and
-  `keys.json`: theme, terminal font and size, sidebar, and every key
-  binding, recorded by pressing the keys
+  `keys.json`: theme, terminal font and size, sidebar, every key
+  binding, recorded by pressing the keys, and mods
+- Mods: commands, keys and event handlers added by programs in any
+  language, over the control socket (see [docs/MODS.md](docs/MODS.md) and
+  `examples/mods`)
 - herdr-app's default key bindings (`keys.json` overrides them)
 - A control CLI compatible with herdr-app's
   (`shiori do tab.new --argv '["claude"]' --task "..."`)
@@ -87,11 +90,11 @@ Commands herdr-app has but this app does not implement answer
 ## Files
 
 `$SHIORI_HOME` (default `~/.config/shiori`) holds
-`settings.json`, `keys.json` and the control socket. Files of the
+`settings.json`, `keys.json`, the `mods` folder and the control socket. Files of the
 app's earlier name, `~/.config/herdr-mygo`, move there on first start. The window reads
 `settings.json` and `keys.json` again when they change (within about
 half a second), or on `shiori do app.reload`; a file that does not parse
-keeps what was in use. `HC_SESSION`
+keeps what was in use; it reads `mods` again as it changes too. `HC_SESSION`
 selects the herdr-core session.
 
 | File | Key | What | Settings panel |
@@ -100,11 +103,13 @@ selects the herdr-core session.
 | | `font` | the terminals' font family, or a comma-separated list | Terminal |
 | | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |
-| `keys.json` | `{"section": {"chord": "action"}}` | herdr-app's key bindings: `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
+| | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
+| `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
+| `mods/<id>/mod.json` | | a mod: see [docs/MODS.md](docs/MODS.md) | Mods |
 
 The panel writes the files as you change things, and
 `shiori do app.settings --section keyboard` opens it at a section
-(`appearance`, `terminal`, `layout`, `keyboard`, `files`).
+(`appearance`, `terminal`, `layout`, `keyboard`, `mods`, `files`).
 
 ## Layout of the code
 
@@ -118,7 +123,9 @@ The panel writes the files as you change things, and
 | `internal/theme`, `internal/programs`, `internal/keys` | themes, program table and icons, key bindings |
 | `docs/PROTOCOL.md` | notes on the core's wire protocol |
 | `docs/CONTRACTS.md` | the packages' public APIs |
-| `docs/MODS.md` | the design of mods (accepted, not built yet) |
+| `internal/mods` | mods' manifests |
+| `docs/MODS.md` | mods: the manifest, the protocol, events |
+| `examples/mods` | two mods: a one-shot command, and a service in Python |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
 | `bench` | the performance comparison with herdr-app |
 

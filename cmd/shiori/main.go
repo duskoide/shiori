@@ -22,6 +22,7 @@ Usage:
   shiori ls                  spaces, tabs and panes of the open window
   shiori status              connection, focus and overlays of the open window
   shiori commands            every command and its arguments, as JSON
+                             (the open window's, with its mods' commands)
   shiori do <cmd> [--k v ...|'{json}']
                              run a command in the open window
   shiori --version | --help

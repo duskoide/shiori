@@ -1,7 +1,7 @@
 # Mods — design
 
-Status: accepted, not built yet. The keymap rule (mods' keys, `none`) and
-the `mods` key of `settings.json` are agreed as written below.
+Status: built (the first phase). The examples below are in
+`examples/mods/`, and the tests run them.
 
 A mod adds commands to Shiori and reacts to what happens in the window. It
 is a folder with a manifest and a program; the program runs outside the
@@ -76,7 +76,7 @@ or removing a mod applies without a restart.
 | `commands[].title`, `about`, `args` | As the built-in commands have them (`shiori commands` prints the same shape). `args[].required` works as for built-ins. |
 | `commands[].run` | A **one-shot** program for this command alone; without it the service handles the command. |
 | `commands[].timeout` | Seconds a one-shot program may run, default 30, at most 600. |
-| `commands[].hidden` | Not in the palette; still runs from keys and `shiori do`. |
+| `commands[].hidden` | Not in the palette; still runs from keys and `shiori do`, and shows on the Keyboard page. |
 | `keys` | Default key bindings, in `keys.json`'s format. Only the mod's own commands may be bound. |
 | `events` | Events the service always gets (it can also subscribe when it connects). |
 
@@ -110,6 +110,7 @@ directory and this environment:
 | `SHIORI_ARGS` | the arguments, a JSON object |
 | `SHIORI_SPACE`, `SHIORI_TAB`, `SHIORI_PANE` | the focused space, tab and pane ids |
 | `SHIORI_TERMINAL`, `SHIORI_CWD` | the focused pane's terminal and folder, when it has one |
+| `SHIORI_BIN` | the `shiori` executable, to run `"$SHIORI_BIN" do …` without it on `PATH` |
 | `HC_SESSION` | the herdr-core session, so `hc` reaches the same core |
 
 What the program prints on stdout is the command's result: JSON when it
@@ -180,10 +181,10 @@ only worked out while someone is subscribed.
 
 | Event | Data |
 | --- | --- |
-| `space.created`, `space.closed` | `{space, name, folder}` |
-| `space.renamed` | `{space, name}` |
-| `tab.created`, `tab.closed` | `{space, tab, name}` |
-| `tab.renamed` | `{space, tab, name}` |
+| `space.created`, `space.closed` | `{space, name, label, folder}`: `name` as given (maybe empty), `label` as shown |
+| `space.renamed` | `{space, name, label}`, when `name` changes |
+| `tab.created`, `tab.closed` | `{space, tab, name, label}` |
+| `tab.renamed` | `{space, tab, name, label}`, when `name` changes |
 | `pane.created`, `pane.closed` | `{space, tab, pane, terminal}` |
 | `focus.changed` | `{space, tab, pane, terminal, cwd}` |
 | `window.focus` | `{focused}`: the window got or lost the keyboard focus |
@@ -313,28 +314,21 @@ for line in f:
         break
 ```
 
-## Building it
+## How it is built
 
-Each step is a pull request that works on its own:
+| Part | Where |
+| --- | --- |
+| Manifests: reading and checking | `internal/mods` |
+| Layered keymaps (`Overlay`, `AddFree`, `Diff`, `none`) | `internal/keys` |
+| The command registry, replies that come later | `internal/app/commands.go`, `deferred.go` |
+| `app.notify`, `app.ask`, `app.confirm`, `app.pick` | `internal/app/dialogs.go` |
+| Sessions, events | `internal/app/session.go`, `events.go` |
+| Loading mods, one-shot commands, logs | `internal/app/mods.go` |
+| Services | `internal/app/services.go` |
+| Settings → Mods | `internal/app/modspage.go` |
 
-1. **Command registry.** `commands` becomes a registry with a source per
-   command (built-in or a mod). Commands may answer later (a pending
-   reply), and the socket waits for them by the command's own limit.
-2. **Dialog commands.** `app.notify`, `app.ask`, `app.confirm`, `app.pick`.
-   Useful from `shiori do` already.
-3. **Sessions and events.** `hello` and JSON-RPC on the socket,
-   `subscribe`, the per-frame event diff, per-connection buffers.
-4. **Mods with one-shot commands.** `mods/` loading and watching, manifest
-   validation, the environment, results, the palette and Keyboard page;
-   the keymap rule with mods' keys and `none`; turning mods on.
-5. **Services.** Starting, `command.run`, restarts, logs, shutdown.
-6. **Settings → Mods**, the README, and two example mods in
-   `examples/mods/` (the two above), which the tests run.
-
-Tests: manifest validation table tests; the event diff on scripted layout
-changes; a fake mod built from the test binary itself (the test re-runs
-`os.Args[0]` as the mod, the usual Go way to test subprocesses); the
-Settings page through `ui.Tester`, as the panel's tests do now.
+The tests run a fake service built from the test binary itself (it runs
+`os.Args[0]` again as the mod's program), and both examples.
 
 ## Later
 
@@ -362,7 +356,7 @@ Settings page through `ui.Tester`, as the panel's tests do now.
   nor run herdr-app's own mods (the layout's `mod` blocks, `mod:<name>`
   key sections). Those stay as they are today: kept, not used.
 
-## Open questions
+## Not planned
 
-- **Windows.** The control socket is a Unix socket. Windows has them since
-  Windows 10, but the rest of the window has not been tried there.
+- **Windows.** Shiori runs on Linux and macOS; the control socket is a Unix
+  socket and services are stopped by process group.

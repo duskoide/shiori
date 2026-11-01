@@ -28,16 +28,18 @@ var settingsSections = []struct{ id, title, icon string }{
 	{"terminal", "Terminal", "terminal"},
 	{"layout", "Layout", "sidebar"},
 	{"keyboard", "Keyboard", "keyboard"},
+	{"mods", "Mods", "puzzle"},
 	{"files", "Files", "file"},
 }
 
 // settingsState is what the panel keeps while it is open.
 type settingsState struct {
 	section      string
-	font         string // the font field, applied on Enter or Apply
-	fontSeen     string // the font settings.json had as the field last took it
-	query        string // the keyboard page's filter
-	confirmReset bool   // Reset all asks before it removes keys.json
+	font         string          // the font field, applied on Enter or Apply
+	fontSeen     string          // the font settings.json had as the field last took it
+	query        string          // the keyboard page's filter
+	confirmReset bool            // Reset all asks before it removes keys.json
+	logs         map[string]bool // the mods whose logs show
 	rec          *recording
 	// The form adding a binding of any action.
 	addSection, addAction string
@@ -81,6 +83,8 @@ func settingsSectionOf(name string) (string, bool) {
 		return "terminal", true
 	case "sidebar":
 		return "layout", true
+	case "extensions", "plugins", "mod":
+		return "mods", true
 	case "about", "config":
 		return "files", true
 	}
@@ -495,6 +499,8 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 							a.layoutPage(c, k)
 						case "keyboard":
 							a.keyboardPage(c, k)
+						case "mods":
+							a.modsPage(c, k)
 						case "files":
 							a.filesPage(c, k)
 						}
@@ -527,9 +533,9 @@ func (a *App) settingsNav(c *ui.Context, k *colors) {
 			row.Children(func() {
 				ui.Icon(c, glyph(s.icon)).Size(15, 15).TextColor(col)
 				ui.Text(c, s.title).FontSize(13).TextColor(k.foreground)
-				if s.id == "keyboard" && a.keysErr != "" {
+				if (s.id == "keyboard" && a.keysErr != "") || (s.id == "mods" && a.modTrouble() != "") {
 					ui.Spacer(c)
-					ui.Icon(c, glyph("alert")).Size(13, 13).TextColor(k.blocked).Tooltip("keys.json has problems")
+					ui.Icon(c, glyph("alert")).Size(13, 13).TextColor(k.blocked).Tooltip(map[bool]string{true: "keys.json has problems", false: a.modTrouble()}[s.id == "keyboard"])
 				}
 			})
 			if row.Clicked() && !active {
@@ -1094,7 +1100,13 @@ func (a *App) settingsSummary() string {
 	if !a.cfg.sidebarShown() {
 		sidebar = "sidebar hidden"
 	}
-	return fmt.Sprintf("%s theme, %s at %g pt, %s.", themeName, font, a.cfg.fontSize(), sidebar)
+	on := 0
+	for _, m := range a.cfg.Mods {
+		if m.Enabled {
+			on++
+		}
+	}
+	return fmt.Sprintf("%s theme, %s at %g pt, %s, %s on.", themeName, font, a.cfg.fontSize(), sidebar, plural(on, "mod", "mods"))
 }
 
 func (a *App) fileRow(c *ui.Context, k *colors, name, state string) {

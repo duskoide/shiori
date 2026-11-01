@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +58,7 @@ func (a *App) modsDir() string { return filepath.Join(a.home, "mods") }
 func (a *App) reloadMods() {
 	list := mods.Load(a.modsDir(), eventNames)
 	old := a.mods
+	var fresh []string // the names of new mods, told of together
 	a.mods = map[string]*modState{}
 	a.modOrder = a.modOrder[:0]
 	for _, m := range list {
@@ -80,11 +82,18 @@ func (a *App) reloadMods() {
 		switch {
 		case m.Err != nil || st.on || a.modNoticed[m.ID+m.Hash]:
 		case !known:
-			a.notify(fmt.Sprintf("New mod %q: turn it on in Settings → Mods", m.Manifest.Name))
+			fresh = append(fresh, strconv.Quote(m.Manifest.Name))
 		case st.manifestChanged(a.cfg):
 			a.notify(fmt.Sprintf("Mod %q changed: look at it in Settings → Mods to turn it on again", m.Manifest.Name))
 		}
 		a.modNoticed[m.ID+m.Hash] = true
+	}
+	switch len(fresh) {
+	case 0:
+	case 1:
+		a.notify("New mod " + fresh[0] + ": turn it on in Settings → Mods")
+	default:
+		a.notify("New mods " + strings.Join(fresh, ", ") + ": turn them on in Settings → Mods")
 	}
 	for id, prev := range old {
 		if a.mods[id] == nil && prev.svc != nil {

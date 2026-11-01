@@ -1,0 +1,9 @@
+{
+  "api": 1,
+  "name": "Agent notifications",
+  "version": "1.0.0",
+  "description": "A desktop notification when an agent needs you and the window is not in front.",
+  "run": ["./notify.py"],
+  "start": "startup",
+  "events": ["agent.status", "window.focus"]
+}

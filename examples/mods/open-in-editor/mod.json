@@ -1,0 +1,15 @@
+{
+  "api": 1,
+  "name": "Open in editor",
+  "version": "1.0.0",
+  "description": "Opens the focused pane's folder in your editor ($VISUAL_GUI, else code).",
+  "commands": [
+    {
+      "name": "open",
+      "title": "Open folder in editor",
+      "run": ["sh", "-c", "exec \"${VISUAL_GUI:-code}\" \"${SHIORI_CWD:-$HOME}\""],
+      "timeout": 10
+    }
+  ],
+  "keys": {"global": {"ctrl-alt-e": "open-in-editor.open"}}
+}
