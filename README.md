@@ -154,6 +154,7 @@ The panel writes the files as you change things, and
 | `internal/changes` | the files being changed in a folder, for the changes panel |
 | `internal/update` | new versions: the latest release, and installing one (`shiori update`) |
 | `docs/MODS.md` | mods: the manifest, the protocol, events |
+| `docs/REMOTE.md` | plan: other machines' spaces and terminals (not built yet) |
 | `examples/mods` | two mods: a one-shot command, and a service in Python |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |
 | `bench` | the performance comparison with herdr-app |
