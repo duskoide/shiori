@@ -4,14 +4,15 @@
 Each run uses its own app home and its own herdr-core session (started before the
 app, so startup measures the app only). The user's real sessions are not touched.
 
-    python3 bench/compare.py [runs] [--json out.json]
+    python3 bench/compare.py [runs] [--json out.json] [--only herdr-mygo]
+    HERDR_MYGO_BIN=/path/to/build picks another herdr-mygo binary.
 """
 import json, os, shutil, statistics, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APPS = {
     "herdr-app": {"bin": shutil.which("herdr-app") or os.path.expanduser("~/.local/bin/herdr-app"), "home": "HERDR_APP_HOME"},
-    "herdr-mygo": {"bin": os.path.join(HERE, "..", "herdr-mygo"), "home": "HERDR_MYGO_HOME"},
+    "herdr-mygo": {"bin": os.environ.get("HERDR_MYGO_BIN") or os.path.join(HERE, "..", "herdr-mygo"), "home": "HERDR_MYGO_HOME"},
 }
 TICK = os.sysconf("SC_CLK_TCK")
 FLOOD_ONE = 2_000_000   # lines printed into one pane
@@ -236,6 +237,12 @@ def main():
     out = None
     if "--json" in args:
         i = args.index("--json"); out = args[i + 1]; del args[i:i + 2]
+    if "--only" in args:
+        i = args.index("--only")
+        for n in list(APPS):
+            if n != args[i + 1]:
+                del APPS[n]
+        del args[i:i + 2]
     runs = int(args[0]) if args else 3
     results = {n: [] for n in APPS}
     for i in range(runs):
@@ -251,13 +258,14 @@ def main():
     if out:
         with open(out, "w") as f:
             json.dump(results, f, indent=1)
-    keys = list(results["herdr-app"][0])
+    names = list(APPS)
+    keys = list(results[names[0]][0])
     def med(n, k):
         vals = [r[k] for r in results[n]]
         return statistics.median(vals) if all(isinstance(v, (int, float)) for v in vals) else "/".join(sorted(set(map(str, vals))))
-    print(f"| metric (median of {runs}) | herdr-app | herdr-mygo |\n|---|---:|---:|")
+    print(f"| metric (median of {runs}) | " + " | ".join(names) + " |\n|---|" + "---:|" * len(names))
     for k in keys:
-        print(f"| {k} | {med('herdr-app', k)} | {med('herdr-mygo', k)} |")
+        print(f"| {k} | " + " | ".join(str(med(n, k)) for n in names) + " |")
 
 
 if __name__ == "__main__":
