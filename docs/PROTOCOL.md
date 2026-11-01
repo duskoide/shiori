@@ -20,9 +20,9 @@ Unix socket, in priority order:
 1. `HC_SOCKET` env var (full path; then config.toml `socket` setting).
 2. `$XDG_RUNTIME_DIR/herdr-core/<session>.sock` (if set and non-empty).
 3. `/run/user/<uid>/herdr-core/<session>.sock` if that dir exists.
-4. else inside the state dir `~/.local/state/herdr-core/<session>/` (`XDG_STATE_HOME` overrides).
+4. else inside the state dir: `$XDG_STATE_HOME|~/.local/state/herdr-core/<session>/<session>.sock`.
 
-`<session>` = `default` unless `HC_SESSION` (or `hc --session X`). Holder sockets `default.holder.<id>.sock` sit beside it — ignore. Windows: named pipe (account+session). Config: `~/.config/herdr-core/config.toml`. Here: `/run/user/1000/herdr-core/default.sock`. State dir also has `core.lock` (actual socket path of the running core), `core.log`, `holder.log`, `docs.json` (persisted documents).
+`<session>` = `default` unless `HC_SESSION` (hc has no `--session` flag: use the env var, e.g. `HC_SESSION=x hc server start`). Holder sockets `default.holder.<id>.sock` sit beside it — ignore. Windows: named pipe (account+session). Config: `~/.config/herdr-core/config.toml`. Here: `/run/user/1000/herdr-core/default.sock`. State dir also has `core.lock` (contains the actual socket path of the running core; verified: it is the plain path, written without newline), `core.log`, `holder.log`, `docs.json` (persisted documents).
 
 ### 1.2 Env vars
 - `HC_TERMINAL_SOCKET` = core socket path, **set by core only inside terminals it spawns** (api/run.rs). It is just an "I am inside this core's terminal" marker for the hc CLI (client.rs `terminal_id()` honours `HC_TERMINAL_ID` only if HC_TERMINAL_SOCKET is the own core). herdr-app does NOT read it. A Go client may use it as a first-guess candidate but must not require it.
@@ -263,3 +263,10 @@ Required: address, labels, argv, cwd, state ("live"|"finished"), created_ms, scr
 7. Per visible pane: terminal.attach → VT emulator, credit, encode keys/mouse yourself, RESIZE on layout change, FOCUS, FACTS on theme change.
 8. Status from status/turn/labels events per `8.
 9. Reconnect loop every 1 s: resubscribe, re-read docs, reattach all panes.
+
+## 12. Corrections found while implementing internal/core
+- There is no `hc --session` flag; the session is selected with `HC_SESSION` only. `HC_TERMINAL_SOCKET`/`HC_TERMINAL_ID` are inherited inside core terminals and point at the *default* core: unset them (and `HC_SOCKET`) when working with an isolated session.
+- `hc server status` (and every other hc command) auto-starts the core of the selected session; use `hc server stop` to stop only that session.
+- Fallback socket (no runtime dir): `<state>/<session>.sock` with state = `$XDG_STATE_HOME/herdr-core/<session>`.
+- The client skips frames of kinds other than DATA on channel 0 and ignores channel-0 messages without an `id` (notifications).
+- A stream-closing CLOSE from the core is also the acknowledgement of our own CLOSE; after sending CLOSE the client must drop late DATA on that channel until it arrives.
