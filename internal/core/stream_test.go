@@ -227,6 +227,59 @@ func TestStreamResizeDedupeAndFacts(t *testing.T) {
 	}
 }
 
+func TestStreamSetDisplay(t *testing.T) {
+	leakCheck(t)
+	_, f, s := attachedStream(t, &Display{FG: "#111111", BG: "#222222", Cursor: "#333333"})
+	defer s.Close()
+
+	// Without a known cell size there is nothing to send FACTS with.
+	if err := s.SetDisplay(Display{FG: "#aaaaaa", BG: "#bbbbbb", Cursor: "#cccccc"}); err != nil {
+		t.Fatal(err)
+	}
+	f.expectNone()
+	// The cell size arrives later and brings the new colors.
+	_ = s.ResizePixels(100, 30, 9, 18)
+	var d Display
+	if err := json.Unmarshal(f.expect(7, kindFacts), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d != (Display{FG: "#aaaaaa", BG: "#bbbbbb", Cursor: "#cccccc", Cell: [2]int{9, 18}}) {
+		t.Fatalf("facts %+v", d)
+	}
+	f.expectNone()
+
+	// A new theme keeps the cell size and is sent once.
+	_ = s.SetDisplay(Display{FG: "#010101", BG: "#020202", Cursor: "#030303"})
+	if err := json.Unmarshal(f.expect(7, kindFacts), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d != (Display{FG: "#010101", BG: "#020202", Cursor: "#030303", Cell: [2]int{9, 18}}) {
+		t.Fatalf("facts %+v", d)
+	}
+	_ = s.SetDisplay(Display{FG: "#010101", BG: "#020202", Cursor: "#030303"})
+	f.expectNone()
+
+	s.Close()
+	if s.SetDisplay(Display{FG: "#fff"}) == nil {
+		t.Fatal("closed stream accepted a display")
+	}
+}
+
+func TestStreamSetDisplayBeforeAttach(t *testing.T) {
+	leakCheck(t)
+	c, f := newPair(t, fakeOpts{})
+	s := c.Stream("t1", &Display{FG: "#111111"})
+	defer s.Close()
+	if err := s.SetDisplay(Display{FG: "#999999", BG: "#888888"}); err != nil {
+		t.Fatal(err)
+	}
+	f.expectNone()
+	_ = s.Resize(80, 24)
+	if req := answerAttach(t, f, 5); req.Display == nil || req.Display.FG != "#999999" || req.Display.BG != "#888888" {
+		t.Fatalf("attach display %+v", req.Display)
+	}
+}
+
 func TestStreamResizeDuringAttach(t *testing.T) {
 	c, f := newPair(t, fakeOpts{})
 	s := c.Stream("t1", nil)

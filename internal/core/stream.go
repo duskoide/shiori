@@ -39,7 +39,7 @@ type Stream struct {
 	timer    *time.Timer
 
 	sentCols, sentRows int
-	sentCell           [2]int
+	sentDisplay        Display // the facts the core knows
 	sentFocus          bool
 
 	queue   [][]byte
@@ -105,7 +105,7 @@ func (s *Stream) attach(cols, rows int, d Display) {
 	}
 	ch := *res.Channel
 	s.channel = ch
-	s.sentCols, s.sentRows, s.sentCell = cols, rows, d.Cell
+	s.sentCols, s.sentRows, s.sentDisplay = cols, rows, d
 	closed := s.userClosed
 	s.mu.Unlock()
 
@@ -136,8 +136,8 @@ func (s *Stream) syncLocked() {
 		s.sentCols, s.sentRows = s.cols, s.rows
 		_ = s.c.send(s.channel, kindResize, resizePayload(s.cols, s.rows))
 	}
-	if s.display.Cell != s.sentCell && s.display.Cell[0] > 0 && s.display.Cell[1] > 0 {
-		s.sentCell = s.display.Cell
+	if s.display != s.sentDisplay && s.display.Cell[0] > 0 && s.display.Cell[1] > 0 {
+		s.sentDisplay = s.display
 		if b, err := json.Marshal(s.display); err == nil {
 			_ = s.c.send(s.channel, kindFacts, b)
 		}
@@ -196,6 +196,24 @@ func (s *Stream) ResizePixels(cols, rows, cellW, cellH int) error {
 		s.display.Cell = [2]int{cellW, cellH}
 	}
 	s.startLocked()
+	s.syncLocked()
+	return nil
+}
+
+// SetDisplay replaces the colors the core answers color queries with,
+// for instance after a theme change. A zero Cell keeps the cell size known
+// so far. Before the attach it only remembers d for it; afterwards the core
+// gets FACTS if they changed.
+func (s *Stream) SetDisplay(d Display) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.usableLocked(); err != nil {
+		return err
+	}
+	if d.Cell[0] <= 0 || d.Cell[1] <= 0 {
+		d.Cell = s.display.Cell
+	}
+	s.display = d
 	s.syncLocked()
 	return nil
 }
