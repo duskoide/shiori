@@ -102,10 +102,12 @@ type App struct {
 	prompt   *promptState
 	confirm  *confirmState
 	settings bool
+	set      settingsState // the settings panel's own state
 	toasts   []toast
 
 	keymap   *keys.Keymap
 	keysRaw  []byte // keys.json as last read, to tell a change from a rewrite
+	keysErr  string // what was wrong with keys.json as last read
 	cfg      Settings
 	k        *colors
 	sidebarW float32
@@ -231,7 +233,7 @@ func (a *App) loadKeys() {
 	prev := a.keymap
 	a.keymap = keys.Default()
 	b, err := os.ReadFile(filepath.Join(a.home, "keys.json"))
-	a.keysRaw = b
+	a.keysRaw, a.keysErr = b, ""
 	if err != nil {
 		return
 	}
@@ -243,6 +245,7 @@ func (a *App) loadKeys() {
 		a.keymap = prev // a file that cannot be read at all keeps the keys in use
 	}
 	if err != nil {
+		a.keysErr = err.Error()
 		a.notify("keys.json: " + err.Error())
 	}
 }

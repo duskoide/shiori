@@ -149,4 +149,11 @@ func Parse(b []byte) (*Keymap, error)
 func Default() *Keymap                          // embedded default_keys.json (Linux)
 func (k *Keymap) Lookup(section string, c Chord) (Action, bool)
 func (k *Keymap) KeysFor(command string) []string // display strings, e.g. "Ctrl+Shift+T"
+func (c Chord) Spec() string                    // keys.json syntax, "ctrl-shift-t"; ParseChord reads it back
+func (a Action) Spec() string                   // "tab.new", "pane.go:left", "send:…", "terminal"
+func (k *Keymap) Clone() *Keymap
+func (k *Keymap) Encode() ([]byte, error)       // a keys.json document, sorted; Parse reads it back
+func (k *Keymap) Bind(section string, c Chord, a Action) (old Action, had bool)
+func (k *Keymap) Unbind(section string, c Chord) bool
+func (k *Keymap) ChordsFor(section, spec string) []Chord
 ```

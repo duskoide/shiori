@@ -165,3 +165,57 @@ func TestParseErrors(t *testing.T) {
 		t.Errorf("valid bindings should survive: %v", km.Sections["global"])
 	}
 }
+
+func TestEncodeRoundTrips(t *testing.T) {
+	km := Default()
+	b, err := km.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Parse(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(km, back) {
+		t.Fatal("the encoded keymap reads back different")
+	}
+	for _, s := range []string{"ctrl-shift-t", "alt-[", "ctrl--", "ctrl-+", "f2", "shift-f2", "ctrl-alt-shift-super-pagedown"} {
+		c, err := ParseChord(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if again, err := ParseChord(c.Spec()); err != nil || again != c {
+			t.Errorf("%s: spec %q reads back %v, %v", s, c.Spec(), again, err)
+		}
+	}
+	for _, s := range []string{"terminal", "send:\u0017", "send:", "tab.new", "pane.go:left"} {
+		a, err := ParseAction(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Spec() != s {
+			t.Errorf("%q spec %q", s, a.Spec())
+		}
+	}
+}
+
+func TestBindUnbindChordsFor(t *testing.T) {
+	km := Default().Clone()
+	c := Chord{Ctrl: true, Shift: true, Key: "t"}
+	old, had := km.Bind("global", c, Action{Command: "pane.zoom"})
+	if !had || old.Command != "tab.new" {
+		t.Fatalf("old %v %v", old, had)
+	}
+	if got := km.ChordsFor("global", "pane.zoom"); len(got) != 2 {
+		t.Fatalf("zoom chords %v", got)
+	}
+	if !km.Unbind("global", c) || km.Unbind("global", c) {
+		t.Fatal("unbind")
+	}
+	if Default().Sections["global"][c].Command != "tab.new" {
+		t.Fatal("the clone shares its maps")
+	}
+	if _, had := (&Keymap{}).Bind("new", c, Action{Terminal: true}); had {
+		t.Fatal("an empty keymap had a binding")
+	}
+}

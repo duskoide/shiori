@@ -163,7 +163,7 @@ func (a *App) closeTerminalPanes(addr string) {
 func (a *App) termFont() terminal.Font {
 	family := a.cfg.Font
 	if family == "" {
-		family = "JetBrains Mono, Geist Mono, DejaVu Sans Mono, monospace"
+		family = defaultFontFamily
 	}
 	return terminal.Font{Family: family, Size: a.cfg.fontSize()}
 }
