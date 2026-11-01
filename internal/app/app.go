@@ -103,6 +103,12 @@ type App struct {
 	waiting map[*deferred]bool
 	dialogs []*queuedDialog // the dialog commands' dialogs, in line
 
+	// The control socket's sessions, and the state events are worked out
+	// from (see events.go).
+	sessions map[*rpcSession]bool
+	snap     *stateSnap
+	eventSeq uint64
+
 	// Overlays.
 	palette  paletteState
 	prompt   *promptState
@@ -165,6 +171,7 @@ func newApp(home, session string) *App {
 		terms:     map[string]*paneTerm{},
 		retry:     map[string]time.Time{},
 		waiting:   map[*deferred]bool{},
+		sessions:  map[*rpcSession]bool{},
 		sidebarW:  sidebarWidth,
 	}
 	a.loadSettings()

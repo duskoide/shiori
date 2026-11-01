@@ -42,6 +42,7 @@ func (a *App) view(c *ui.Context) {
 	a.toastView(c, k)
 	a.lookedAt()
 	a.flush()
+	a.emitEvents()
 }
 
 // sidebarDivider is the edge of the sidebar that resizes it.

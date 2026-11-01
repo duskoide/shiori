@@ -69,11 +69,28 @@ func (a *App) listen() (net.Listener, error) {
 	return l, nil
 }
 
+// readLine reads a line, at most maxRequest+1 bytes of it.
+func readLine(r *bufio.Reader) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > maxRequest || err != bufio.ErrBufferFull {
+			return line, err
+		}
+	}
+}
+
 func (a *App) serve(conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
-	line, err := bufio.NewReader(io.LimitReader(conn, maxRequest+1)).ReadBytes('\n')
+	r := bufio.NewReader(conn)
+	line, err := readLine(r)
 	if err != nil && len(line) == 0 {
+		return
+	}
+	if len(line) <= maxRequest && isRPC(line) {
+		a.runSession(conn, r, line)
 		return
 	}
 	var req request
