@@ -68,6 +68,9 @@ func (a *App) reloadConfig(manual bool) {
 	if !reflect.DeepEqual(oldCfg.Mods, a.cfg.Mods) {
 		a.reloadMods()
 	}
+	if !reflect.DeepEqual(oldCfg.UpdateCheck, a.cfg.UpdateCheck) && a.started {
+		a.scheduleUpdateCheck()
+	}
 	if settings {
 		a.applyTheme()
 		for _, pt := range a.terms {

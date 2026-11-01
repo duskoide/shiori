@@ -25,11 +25,15 @@ Usage:
                              (the open window's, with its mods' commands)
   shiori do <cmd> [--k v ...|'{json}']
                              run a command in the open window
+  shiori update [--check] [--version <v>]
+                             install the latest release (or v) in place of
+                             this one; --check only says whether one is out
   shiori --version | --help
 
 Environment:
   SHIORI_HOME   the app's files (default ~/.config/shiori)
   HC_SESSION    the herdr-core session to use (default "default")
+  GITHUB_TOKEN  for shiori update while the repository is private
 `
 
 func main() {
@@ -41,6 +45,7 @@ func main() {
 
 func run(argv []string, out io.Writer) error {
 	home := app.DefaultHome()
+	app.Version = version
 	if len(argv) == 0 {
 		return app.Run(home, os.Getenv("HC_SESSION"))
 	}
@@ -69,6 +74,8 @@ func run(argv []string, out io.Writer) error {
 		}
 		b, err := app.Do(home, argv[1], v)
 		return printReply(out, b, err)
+	case "update":
+		return runUpdate(argv[1:], out, home)
 	}
 	return fmt.Errorf("unknown command %q\n\n%s", argv[0], usage)
 }

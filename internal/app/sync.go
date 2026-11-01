@@ -18,6 +18,7 @@ func (a *App) start() {
 	a.stop = cancel
 	a.started = true
 	a.startServices()
+	a.scheduleUpdateCheck()
 	go a.connectLoop(ctx)
 	go a.watchConfig(ctx)
 }
@@ -28,6 +29,9 @@ func (a *App) shutdown() {
 	a.cancelWaiting()
 	a.stopServices()
 	a.stopChanges()
+	if a.updTimer != nil {
+		a.updTimer.Stop()
+	}
 	a.flushSettings()
 	a.drain()
 	if a.stop != nil {

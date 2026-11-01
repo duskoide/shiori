@@ -90,10 +90,32 @@ shiori do space.new --name api --folder ~/src/api
 Commands herdr-app has but this app does not implement answer
 "<name> is not supported by this app".
 
+## Updating
+
+```sh
+shiori update --check           # is a newer release out?
+shiori update                   # install it in place of this one
+shiori update --version v0.2.0  # or a release of your choice
+```
+
+`shiori update` downloads the release for this OS and CPU, checks it
+against the release's `checksums.txt`, and replaces the binary and the
+herdr-core bundled beside it (where `install.sh` put them). Close Shiori
+and open it again afterwards. While the repository is private, set
+`GITHUB_TOKEN` to a token that can read it.
+
+The window also looks for a new release once a day and, when there is
+one, says so once and shows "Update to …" in the status bar. That look
+is one request to GitHub's API for the latest release; it sends nothing
+about you or the machine. Turn it off in Settings → About, with
+`"update_check": false` in `settings.json`, or with
+`SHIORI_NO_UPDATE_CHECK=1`. Development builds (`0.1.0-dev`) do not look.
+
 ## Files
 
 `$SHIORI_HOME` (default `~/.config/shiori`) holds
-`settings.json`, `keys.json`, the `mods` folder and the control socket. Files of the
+`settings.json`, `keys.json`, the `mods` folder, the control socket and
+`update.json` (when the window last looked for a new version). Files of the
 app's earlier name, `~/.config/herdr-mygo`, move there on first start. The window reads
 `settings.json` and `keys.json` again when they change (within about
 half a second), or on `shiori do app.reload`; a file that does not parse
@@ -107,6 +129,7 @@ selects the herdr-core session.
 | | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |
 | | `changes` | `true` shows the changes panel | Layout |
+| | `update_check` | `false` stops the daily look for a new version | About |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
 | `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` and `terminal` here, other sections kept for herdr-app | Keyboard |
 | `mods/<id>/mod.json` | | a mod: see [docs/MODS.md](docs/MODS.md) | Mods |
@@ -129,6 +152,7 @@ The panel writes the files as you change things, and
 | `docs/CONTRACTS.md` | the packages' public APIs |
 | `internal/mods` | mods' manifests |
 | `internal/changes` | the files being changed in a folder, for the changes panel |
+| `internal/update` | new versions: the latest release, and installing one (`shiori update`) |
 | `docs/MODS.md` | mods: the manifest, the protocol, events |
 | `examples/mods` | two mods: a one-shot command, and a service in Python |
 | `assets`, `tools/logo` | the logo and icon, and the script drawing them (`make logo`) |

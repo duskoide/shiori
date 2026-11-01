@@ -206,6 +206,17 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 			})
 		}
 		ui.Spacer(c)
+		if v, ok := a.newerRelease(); ok {
+			up := ui.Row(c).Gap(5).AlignItems(ui.Center).Shrink(0).Cursor(ui.CursorPointer).Role(ui.RoleButton).
+				Label("Update to " + v).Tooltip("A newer Shiori is out: see Settings → About")
+			up.Children(func() {
+				ui.Box(c).Size(6, 6).Radius(3).Background(k.accent)
+				ui.Text(c, "Update to "+v).FontSize(11.5).TextColor(k.accent).SingleLine()
+			})
+			if up.Clicked() {
+				a.post(func() { a.openSettings("about") })
+			}
+		}
 		if keys := a.keysFor("app.palette"); keys != "" {
 			hint := ui.Text(c, keys+"  commands").FontSize(11.5).TextColor(k.dim).SingleLine().Shrink(0).
 				Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Command palette")
