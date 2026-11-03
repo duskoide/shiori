@@ -172,12 +172,27 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 				})
 			}
 			ui.Spacer(c)
+			if a.chg.files {
+				t := ui.Box(c.Key("dotfiles")).Padding(2, 6).Radius(6).Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Show hidden files").
+					Tooltip("Show hidden files")
+				col := k.muted
+				if a.files.hidden {
+					t.Background(k.selected)
+					col = k.foreground
+				} else if t.Hovered() {
+					t.Background(k.hover)
+				}
+				t.Children(func() { ui.Text(c, ".*").FontSize(12).FontWeight(600).TextColor(col) })
+				if t.Clicked() {
+					a.files.hidden = !a.files.hidden
+					a.files.cache = nil
+				}
+			}
 			if iconButton(c, k, "reset", "Look again", 24, 13).Tooltip("Look again").Clicked() {
 				if a.chg.w != nil {
 					a.chg.w.Refresh()
 				}
 				a.files.cache = nil
-				a.files.root = ""
 			}
 			if iconButton(c, k, "x", "Hide changes", 24, 13).Tooltip(withKeys("Hide changes", a.keysFor("layout.toggle:changes"))).Clicked() {
 				a.post(a.toggleChanges)

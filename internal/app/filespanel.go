@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -17,11 +18,21 @@ import (
 // filesState is the tab's tree.
 type filesState struct {
 	root   string
-	open   map[string]bool        // folders shown open, by absolute path
-	cache  map[string][]fileEntry // what a folder held when it was read
+	open   map[string]bool      // folders shown open, by absolute path
+	cache  map[string]cachedDir // what a folder held when it was read
 	list   ui.ListState
 	hidden bool // dot files are shown
 }
+
+// cachedDir is a folder's listing and when it was read; it is read again
+// after filesFresh, so the tree follows the disk.
+type cachedDir struct {
+	es  []fileEntry
+	at  time.Time
+	err error
+}
+
+const filesFresh = 3 * time.Second
 
 type fileEntry struct {
 	name string
@@ -40,15 +51,19 @@ func (s *filesState) reset(root string) {
 	if s.root == root && s.open != nil {
 		return
 	}
-	s.root, s.open, s.cache = root, map[string]bool{}, map[string][]fileEntry{}
+	s.root, s.open, s.cache = root, map[string]bool{}, map[string]cachedDir{}
 }
 
 func (s *filesState) read(dir string) ([]fileEntry, error) {
-	if es, ok := s.cache[dir]; ok {
-		return es, nil
+	if s.cache == nil {
+		s.cache = map[string]cachedDir{}
+	}
+	if cd, ok := s.cache[dir]; ok && time.Since(cd.at) < filesFresh {
+		return cd.es, cd.err
 	}
 	des, err := os.ReadDir(dir)
 	if err != nil {
+		s.cache[dir] = cachedDir{at: time.Now(), err: err}
 		return nil, err
 	}
 	var es []fileEntry
@@ -71,7 +86,7 @@ func (s *filesState) read(dir string) ([]fileEntry, error) {
 		}
 		return strings.ToLower(es[i].name) < strings.ToLower(es[j].name)
 	})
-	s.cache[dir] = es
+	s.cache[dir] = cachedDir{es: es, at: time.Now()}
 	return es, nil
 }
 
@@ -108,6 +123,7 @@ func (a *App) filesTab(c *ui.Context, k *colors, machine, folder string) {
 		changesNote(c, k, "Cannot read this folder", err.Error())
 		return
 	}
+	c.After(filesFresh) // the disk moves on
 	rows := f.rows()
 	if len(rows) == 0 {
 		changesNote(c, k, "Empty", "Nothing in this folder.")
