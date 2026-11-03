@@ -37,6 +37,7 @@ type changesState struct {
 	have    bool    // snap is the watched folder's
 	width   float32 // the panel's width, 0 for the first
 	list    ui.ListState
+	files   bool // the panel shows the files tab, not the changes
 }
 
 func (s Settings) changesShown() bool { return s.Changes != nil && *s.Changes }
@@ -163,20 +164,33 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 	machine, folder := a.changesFolder()
 	ui.Column(c).Width(a.changesWidth()).Shrink(0).MinHeight(0).Background(k.chrome).Label("Changes").Children(func() {
 		ui.Row(c).Height(36).Padding(0, 6, 0, 14).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
-			ui.Text(c, "Changes").FontSize(12.5).FontWeight(600).TextColor(k.foreground)
-			if a.chg.have && len(snap.Files) > 0 {
+			a.panelTab(c, k, "Changes", !a.chg.files)
+			a.panelTab(c, k, "Files", a.chg.files)
+			if !a.chg.files && a.chg.have && len(snap.Files) > 0 {
 				ui.Box(c).Padding(0, 6).Radius(8).Background(k.hover).Children(func() {
 					ui.Textf(c, "%d", len(snap.Files)).FontSize(11).TextColor(k.muted)
 				})
 			}
 			ui.Spacer(c)
-			if iconButton(c, k, "reset", "Look again", 24, 13).Tooltip("Look again").Clicked() && a.chg.w != nil {
-				a.chg.w.Refresh()
+			if iconButton(c, k, "reset", "Look again", 24, 13).Tooltip("Look again").Clicked() {
+				if a.chg.w != nil {
+					a.chg.w.Refresh()
+				}
+				a.files.cache = nil
+				a.files.root = ""
 			}
 			if iconButton(c, k, "x", "Hide changes", 24, 13).Tooltip(withKeys("Hide changes", a.keysFor("layout.toggle:changes"))).Clicked() {
 				a.post(a.toggleChanges)
 			}
 		})
+		if a.chg.files {
+			if folder != "" {
+				ui.Text(c, pathOn(machine, folder)).FontSize(11).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
+			}
+			ui.Box(c).Height(1).Background(k.border).Shrink(0)
+			a.filesTab(c, k, machine, folder)
+			return
+		}
 		if folder != "" {
 			what := "files modified in the last day"
 			if a.chg.have && snap.Git {
@@ -324,5 +338,21 @@ func (a *App) openInEditor(folder, rel string) {
 	argv := append(strings.Fields(editor), rel)
 	if _, err := a.do("tab.new", args{"argv": toAny(argv), "folder": folder, "name": path.Base(rel)}); err != nil {
 		a.notifyLevel(fmt.Sprint(err), levelError)
+	}
+}
+
+// panelTab is a tab of the panel's header.
+func (a *App) panelTab(c *ui.Context, k *colors, title string, active bool) {
+	t := ui.Box(c.Key("tab:"+title)).Padding(3, 8).Radius(7).Cursor(ui.CursorPointer).Role(ui.RoleTab).Selected(active).Label(title)
+	col := k.muted
+	if active {
+		t.Background(k.selected)
+		col = k.foreground
+	} else if t.Hovered() {
+		t.Background(k.hover)
+	}
+	t.Children(func() { ui.Text(c, title).FontSize(12.5).FontWeight(600).TextColor(col) })
+	if t.Clicked() && !active {
+		a.chg.files = title == "Files"
 	}
 }

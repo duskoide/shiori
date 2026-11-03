@@ -120,6 +120,7 @@ type App struct {
 	settings bool
 	set      settingsState // the settings panel's own state
 	chg      changesState  // the changes panel
+	files    filesState    // its files tab
 
 	// The look for new versions (updates.go).
 	upd         updateState
