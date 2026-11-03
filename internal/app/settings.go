@@ -1004,7 +1004,7 @@ func (a *App) keyboardPage(c *ui.Context, k *colors) {
 	ui.Text(c, "Click + to add keys to an action, a key to change it, its × to remove it. Esc cancels.").FontSize(12).TextColor(k.muted)
 
 	q := strings.ToLower(strings.TrimSpace(a.set.query))
-	a.bindingSection(c, k, "Prefix key", "The one key the window reads itself. It enters command mode, which shows the keys below; the next key runs its action.", "global", q)
+	a.bindingSection(c, k, "Prefix key", "The one key the window reads itself. It goes from normal mode to command mode, which the status bar shows; the next key runs its action below.", "global", q)
 	a.prefixNote(c, k)
 	a.bindingSection(c, k, "Prefix", "Keys of command mode: press the prefix key, then one of these. Esc or a key that is not bound cancels.", keys.PrefixSection, q)
 	a.bindingSection(c, k, "Terminal", "Keys a terminal takes before the program sees them.", "terminal", q)

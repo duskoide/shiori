@@ -47,7 +47,6 @@ func (a *App) view(c *ui.Context) {
 	a.paletteView(c, k)
 	a.promptView(c, k)
 	a.confirmView(c, k)
-	a.prefixView(c, k)
 	a.settingsView(c, k)
 	a.toastView(c, k)
 	a.lookedAt()

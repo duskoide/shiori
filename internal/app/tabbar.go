@@ -165,10 +165,15 @@ func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layou
 	}
 }
 
-// statusBar is the machine, the agents' count and a hint of the palette.
+// statusBar is the mode, the machine, the agents' count and a hint of
+// the palette.
 func (a *App) statusBar(c *ui.Context, k *colors) {
 	ui.Row(c).Height(statusHeight).Padding(0, 12).Gap(14).AlignItems(ui.Center).Shrink(0).
 		Background(k.chrome).BorderWidth(1, 0, 0, 0).BorderColor(k.border).Children(func() {
+		a.modeChip(c, k)
+		if a.prefixPending() {
+			return // the mode's hint has the bar
+		}
 		a.statusMachine(c, k)
 		list := a.agents()
 		if len(list) > 0 {
@@ -195,11 +200,6 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 			})
 		}
 		ui.Spacer(c)
-		if a.prefixPending() {
-			ui.Box(c).Padding(1, 8).Radius(8).Background(k.accent.Alpha(0.18)).Border(1, k.accent).Shrink(0).Role(ui.RoleStatus).Label("Waiting for the key after the prefix key").Children(func() {
-				ui.Text(c, a.prefixLabel()).FontSize(11.5).FontWeight(600).TextColor(k.accent).SingleLine()
-			})
-		}
 		if v, ok := a.newerRelease(); ok {
 			up := ui.Row(c).Gap(5).AlignItems(ui.Center).Shrink(0).Cursor(ui.CursorPointer).Role(ui.RoleButton).
 				Label("Update to " + v).Tooltip("A newer Shiori is out: see Settings → About")

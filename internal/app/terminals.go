@@ -324,11 +324,16 @@ func (a *App) shortcutAllowed(cmd string) bool {
 	return true
 }
 
-// shortcuts reads the one key the window reads itself: the prefix key,
-// the "global" key bound to app.prefix. Every other key is the prefix
-// section's, once command mode is on.
+// shortcuts reads the one key the window reads itself in normal mode: the
+// prefix key, the "global" key bound to app.prefix. In command mode it
+// reads the next key, for the prefix section.
 func (a *App) shortcuts(c *ui.Context) {
-	if a.prefixPending() || a.prompt != nil || a.confirm != nil || a.settings || a.palette.open {
+	if a.prompt != nil || a.confirm != nil || a.settings || a.palette.open {
+		a.prefix = nil // a dialog has the keys now
+		return
+	}
+	if a.prefixPending() {
+		a.prefixShortcuts(c)
 		return
 	}
 	for chord, act := range a.keymap.Sections["global"] {

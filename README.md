@@ -200,7 +200,7 @@ selects the herdr-core session.
 | | `update_check` | `false` stops the daily look for a new version | About |
 | | `restore` | `false` closes the panes whose terminals herdr-core lost when it stopped, instead of starting fresh shells in them | Layout |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
-| `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` holds only the prefix key (`"ctrl-b": "app.prefix"`, the one key the window reads itself: it enters command mode, which shows the keys), `prefix` holds the keys of command mode, `terminal` the keys a terminal takes first; other sections are kept for herdr-app | Keyboard |
+| `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` holds only the prefix key (`"ctrl-b": "app.prefix"`, the one key the window reads itself: it goes from normal mode to command mode, which the status bar shows), `prefix` holds the keys of command mode, `terminal` the keys a terminal takes first; other sections are kept for herdr-app | Keyboard |
 | `mods/<id>/mod.json` | | a mod: see [examples/mods](examples/mods/README.md) | Mods |
 
 Machines are herdr-core's (`hc machine ls`), not Shiori's: no file here
