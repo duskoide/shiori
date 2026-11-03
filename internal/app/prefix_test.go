@@ -21,7 +21,6 @@ func TestPrefixKeyThenKey(t *testing.T) {
 	if !tt.HasText("NORMAL") || tt.HasText("COMMAND") {
 		t.Fatalf("not in normal mode: %q", tt.Texts())
 	}
-	focusReq := a.focusReq
 	tt.Key(ui.Ctrl, ui.KeyB)
 	settle(tt)
 	if !a.prefixPending() {
@@ -30,17 +29,53 @@ func TestPrefixKeyThenKey(t *testing.T) {
 	if !tt.HasText("COMMAND") || tt.HasText("NORMAL") {
 		t.Fatalf("command mode is not shown: %q", tt.Texts())
 	}
-	// Only the mode changes: no dialog, the focus where it was.
-	if tt.Focused("Command mode") || a.focusReq != focusReq {
-		t.Fatal("command mode took the focus")
+	// No dialog, but the keyboard is command mode's, not the terminal's.
+	if !tt.Focused("Command mode") {
+		t.Fatal("command mode does not hold the focus")
 	}
 	if !slices.ContainsFunc(tt.Texts(), func(s string) bool { return strings.Contains(s, "· ? lists them") }) {
 		t.Errorf("no hint of the key list: %q", tt.Texts())
 	}
-	tt.Key(0, ui.KeyA)
+	// As on Linux: the key, then its text apart from it, which the
+	// terminal must not get.
+	tt.TypeKey(0, ui.KeyA, "a")
 	settle(tt)
 	if a.prefixPending() || !a.settings {
 		t.Fatalf("pending %v, settings %v", a.prefixPending(), a.settings)
+	}
+	if tt.Focused("Command mode") {
+		t.Fatal("command mode kept the focus")
+	}
+}
+
+func TestPrefixGivesTheFocusBack(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	want := a.focus[a.activeTab[a.activeSpace]]
+	a.focusReq = ""
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	if !tt.Focused("Command mode") {
+		t.Fatal("command mode does not hold the focus")
+	}
+	a.cancelPrefix()
+	if a.focusReq != want {
+		t.Fatalf("focus goes to %q, not the pane %q", a.focusReq, want)
+	}
+}
+
+func TestPrefixClickAwayGoesBack(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	if !tt.Focused("Command mode") {
+		t.Fatal("command mode does not hold the focus")
+	}
+	mustClick(t, tt, "Settings")
+	settle(tt)
+	if a.prefixPending() {
+		t.Fatal("a click away did not end command mode")
 	}
 }
 

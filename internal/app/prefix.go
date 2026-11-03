@@ -11,11 +11,14 @@ import (
 
 // Shiori's keys all go through the prefix key: it is pressed, and the
 // window goes from normal mode to command mode, as vim's modes, which the
-// status bar shows. Nothing else changes: the focus stays where it was,
-// and the window stays as it was. The next key is the window's, not the
-// terminal's: it runs its action from the "prefix" section of keys.json,
-// and the window is back in normal mode; Esc, or a key that is not
-// bound, only goes back. The prefix key is whatever "global" binds to
+// status bar shows. The window stays as it was, but command mode holds
+// the keyboard: a hidden element of the status bar has the focus until
+// the next key, so the terminal sees neither that key nor the text it
+// types (which on Linux comes apart from the key, after the window took
+// it). That key runs its action from the "prefix" section of keys.json,
+// and the window is back in normal mode with the focus in the pane;
+// Esc, or a key that is not bound, only goes back. A click elsewhere
+// goes back too, leaving the focus where it went. The prefix key is whatever "global" binds to
 // app.prefix, and the only key the window itself reads in normal mode.
 
 // swallowedKey is the key that ended command mode, which the terminal
@@ -44,7 +47,10 @@ func (a *App) swallowed(mods ui.Modifiers, key ui.Key) bool {
 }
 
 // prefixMode is command mode while it lasts.
-type prefixMode struct{}
+type prefixMode struct {
+	// held: the hidden element of the status bar has had the focus.
+	held bool
+}
 
 // prefixPending reports whether command mode is on.
 func (a *App) prefixPending() bool { return a.prefix != nil }
@@ -57,10 +63,11 @@ func (a *App) startPrefix() {
 	}
 }
 
-// cancelPrefix goes back to normal mode.
+// cancelPrefix goes back to normal mode, the focus to the pane.
 func (a *App) cancelPrefix() {
 	if a.prefix != nil {
 		a.prefix = nil
+		a.focusReq = a.focus[a.activeTab[a.activeSpace]]
 		a.invalidate()
 	}
 }
@@ -219,7 +226,18 @@ func (a *App) modeChip(c *ui.Context, k *colors) {
 	if l := a.keymap.PrefixChords(); len(l) > 0 {
 		leader = l[0].String()
 	}
-	if a.prefixPending() {
+	if p := a.prefix; p != nil {
+		// Holds the focus, so the terminal does not see the key.
+		hold := ui.Box(c.Key("command-mode-hold")).Size(0, 0).Focusable().FocusRing(false).Label("Command mode").AutoFocus()
+		switch {
+		case hold.Focused():
+			p.held = true
+		case p.held:
+			// Clicked away: the focus stays where the click put it.
+			a.prefix = nil
+			a.invalidate()
+			return
+		}
 		ui.Row(c).Gap(6).Padding(1, 8).Radius(5).Background(k.accent).AlignItems(ui.Center).Shrink(0).
 			Role(ui.RoleStatus).Label("Command mode").Children(func() {
 			ui.Text(c, "COMMAND").FontSize(ts(11)).FontWeight(700).TextColor(k.chrome).SingleLine()
