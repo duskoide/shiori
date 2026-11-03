@@ -200,8 +200,10 @@ func (a *App) modeChip(c *ui.Context, k *colors) {
 	if p := a.prefix; p != nil {
 		// Holds the focus, so the terminal does not see the key.
 		// Its text is the key too: on Linux a key that types text, as ?
-		// (Shift and /), may come as its text alone, with no key press.
+		// (Shift and /), may come as its text alone, with no key press,
+		// and comes at all only to an element taking text (TextCaret).
 		hold := ui.Box(c.Key("command-mode-hold")).Size(0, 0).Focusable().FocusRing(false).Label("Command mode").AutoFocus().
+			TextCaret(ui.Rect{}).
 			HandleInput(func(ev ui.InputEvent) bool {
 				if ev.Kind != ui.InputText || a.prefix == nil {
 					return false

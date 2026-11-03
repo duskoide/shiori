@@ -138,6 +138,10 @@ func TestPrefixKeyAsTextAlone(t *testing.T) {
 	tt := uxTester(a)
 	tt.Key(ui.Ctrl, ui.KeyB)
 	settle(tt)
+	// The system sends text only to an element taking it.
+	if _, ok := tt.TextCaret(); !ok || !tt.Focused("Command mode") {
+		t.Fatal("command mode does not take text")
+	}
 	tt.Type("?")
 	settle(tt)
 	if a.prefixPending() || !a.palette.open {
