@@ -199,7 +199,19 @@ func (a *App) modeChip(c *ui.Context, k *colors) {
 	}
 	if p := a.prefix; p != nil {
 		// Holds the focus, so the terminal does not see the key.
-		hold := ui.Box(c.Key("command-mode-hold")).Size(0, 0).Focusable().FocusRing(false).Label("Command mode").AutoFocus()
+		// Its text is the key too: on Linux a key that types text, as ?
+		// (Shift and /), may come as its text alone, with no key press.
+		hold := ui.Box(c.Key("command-mode-hold")).Size(0, 0).Focusable().FocusRing(false).Label("Command mode").AutoFocus().
+			HandleInput(func(ev ui.InputEvent) bool {
+				if ev.Kind != ui.InputText || a.prefix == nil {
+					return false
+				}
+				if chord, ok := textChord(ev.Text); ok {
+					a.cancelPrefix()
+					a.post(func() { a.runPrefixKey(chord) })
+				}
+				return true // not the terminal's either way
+			})
 		switch {
 		case hold.Focused():
 			p.held = true
@@ -227,6 +239,31 @@ func (a *App) modeChip(c *ui.Context, k *colors) {
 	ui.Box(c).Padding(1, 8).Radius(5).Border(1, k.border).Shrink(0).Role(ui.RoleStatus).Label("Normal mode").Tooltip(tip).Children(func() {
 		ui.Text(c, "NORMAL").FontSize(ts(11)).FontWeight(700).TextColor(k.dim).SingleLine()
 	})
+}
+
+// textChord is the chord of keys.json that types text, one character:
+// Shift and / for ?, Shift and V for V.
+func textChord(text string) (keys.Chord, bool) {
+	r := []rune(text)
+	if len(r) != 1 {
+		return keys.Chord{}, false
+	}
+	name, shift := string(r[0]), false
+	if r[0] == ' ' {
+		name = "space"
+	}
+	if r[0] >= 'A' && r[0] <= 'Z' {
+		name, shift = strings.ToLower(name), true
+	}
+	k, ok := uiKeys[name]
+	if !ok {
+		return keys.Chord{}, false
+	}
+	mods := ui.Modifiers(0)
+	if shift || k.shift {
+		mods = ui.Shift
+	}
+	return chordOf(mods, k.key)
 }
 
 // typedLabel is a key as a person types it: ? and not Shift+/.

@@ -131,3 +131,31 @@ func TestTypedLabel(t *testing.T) {
 		}
 	}
 }
+
+// On Linux, ? (Shift and /) comes as its text alone, with no key press.
+func TestPrefixKeyAsTextAlone(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Type("?")
+	settle(tt)
+	if a.prefixPending() || !a.palette.open {
+		t.Fatalf("pending %v, key list open %v", a.prefixPending(), a.palette.open)
+	}
+}
+
+func TestTextChord(t *testing.T) {
+	for text, want := range map[string]string{"?": "shift-/", "v": "v", "V": "shift-v", "%": "", " ": "space", "|": "shift-\\"} {
+		got, ok := textChord(text)
+		if want == "" {
+			if ok {
+				t.Errorf("%q: %v, want none", text, got)
+			}
+			continue
+		}
+		if w := chord(t, want); !ok || got != w {
+			t.Errorf("%q: %v %v, want %v", text, got, ok, w)
+		}
+	}
+}
