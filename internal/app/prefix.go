@@ -2,7 +2,6 @@ package app
 
 import (
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -20,31 +19,6 @@ import (
 // Esc, or a key that is not bound, only goes back. A click elsewhere
 // goes back too, leaving the focus where it went. The prefix key is whatever "global" binds to
 // app.prefix, and the only key the window itself reads in normal mode.
-
-// swallowedKey is the key that ended command mode, which the terminal
-// must not take as its own for a moment.
-type swallowedKey struct {
-	mods  ui.Modifiers
-	key   ui.Key
-	until time.Time
-}
-
-// swallowed says whether the key is the one that just ended command mode.
-func (a *App) swallowed(mods ui.Modifiers, key ui.Key) bool {
-	s := a.swallow
-	if s.until.IsZero() {
-		return false
-	}
-	if time.Now().After(s.until) {
-		a.swallow = swallowedKey{}
-		return false
-	}
-	if s.key != key {
-		return false
-	}
-	a.swallow = swallowedKey{}
-	return true
-}
 
 // prefixMode is command mode while it lasts.
 type prefixMode struct {
@@ -117,9 +91,6 @@ func (a *App) prefixShortcuts(c *ui.Context) {
 				continue
 			}
 			chord, ok := chordOf(mods, key)
-			// The terminal may see this same key event after this frame's
-			// shortcuts: it must not type it.
-			a.swallow = swallowedKey{mods: mods, key: key, until: time.Now().Add(250 * time.Millisecond)}
 			a.cancelPrefix()
 			if ok {
 				a.post(func() { a.runPrefixKey(chord) })

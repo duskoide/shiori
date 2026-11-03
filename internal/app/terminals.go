@@ -200,9 +200,6 @@ func (a *App) terminalKey(pt *paneTerm, mods ui.Modifiers, key ui.Key) bool {
 		// take (a modifier on its way) is not the program's either.
 		return true
 	}
-	if a.swallowed(mods, key) {
-		return true
-	}
 	chord, ok := chordOf(mods, key)
 	if !ok {
 		return false
