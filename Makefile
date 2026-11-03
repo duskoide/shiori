@@ -49,7 +49,7 @@ dev:
 package:
 	$(GO) tool mygo build
 
-# Redraw assets/{logo.svg,icon.png,mark.svg} from Noto Sans CJK JP.
+# Redraw assets/{logo,logo-dev}.svg, {icon,icon-dev}.png and mark.svg from Noto Sans CJK JP.
 logo:
 	uv run --with fonttools --with resvg-py tools/logo/make_logo.py
 

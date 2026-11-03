@@ -4,7 +4,9 @@
     uv run --with fonttools --with resvg-py tools/logo/make_logo.py [font.ttc]
 
 Writes assets/logo.svg (the app icon), assets/icon.png (1024x1024, what
-mygo build packages and the window shows) and assets/mark.svg (the bare
+mygo build packages and the window shows), their light twins
+assets/logo-dev.svg and assets/icon-dev.png (the dev edition's, so it
+tells apart from the release in a dock) and assets/mark.svg (the bare
 glyph in currentColor, 24x24, for the sidebar). The glyph is outlines, so
 the SVGs need no font.
 """
@@ -60,6 +62,38 @@ def glyph_path(font, weight, box):
     return pen.getCommands()
 
 
+# The tile's colors: (top, bottom, edge or None, character).
+INK = ("#2e2943", "#17141f", None, "#f5eedf")
+PAPER = ("#fbf8f1", "#ebe3d2", "#d8ccb4", "#241f33")
+
+
+def tile(glyph, light):
+    """The app icon: a squircle-ish tile, a vermilion ribbon hanging from its
+    top edge as a bookmark's, and the character. Ink with the character in
+    paper white; light (the dev edition's), paper with it in ink."""
+    top, bottom, edge, char = PAPER if light else INK
+    border = f'\n  <rect x="66" y="66" width="892" height="892" rx="198" fill="none" stroke="{edge}" stroke-width="4"/>' if edge else ""
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{top}"/>
+      <stop offset="1" stop-color="{bottom}"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8402d"/>
+      <stop offset="1" stop-color="#ec6a4f"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#ink)"/>{border}
+  <g clip-path="url(#tile)">
+    <path d="M682 40h88v214l-44-36l-44 36z" fill="url(#ribbon)"/>
+  </g>
+  <path d="{glyph}" fill="{char}"/>
+</svg>
+"""
+
+
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else next((p for p in FONTS if os.path.exists(p)), None)
     if not path:
@@ -68,38 +102,20 @@ def main():
     os.makedirs(res, exist_ok=True)
 
     icon_glyph = glyph_path(just_the_glyph(japanese_face(path)), 700, (282, 314, 460))
-    # A squircle-ish tile of ink, a vermilion ribbon hanging from its top
-    # edge as a bookmark's, and the character in paper white.
-    logo = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2e2943"/>
-      <stop offset="1" stop-color="#17141f"/>
-    </linearGradient>
-    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c8402d"/>
-      <stop offset="1" stop-color="#ec6a4f"/>
-    </linearGradient>
-    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
-  </defs>
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#ink)"/>
-  <g clip-path="url(#tile)">
-    <path d="M682 40h88v214l-44-36l-44 36z" fill="url(#ribbon)"/>
-  </g>
-  <path d="{icon_glyph}" fill="#f5eedf"/>
-</svg>
-"""
-    with open(os.path.join(res, "logo.svg"), "w") as f:
-        f.write(logo)
+    logos = {"logo.svg": tile(icon_glyph, light=False), "logo-dev.svg": tile(icon_glyph, light=True)}
+    for name, svg in logos.items():
+        with open(os.path.join(res, name), "w") as f:
+            f.write(svg)
 
     mark = glyph_path(just_the_glyph(japanese_face(path)), 600, (1, 1, 22))
     with open(os.path.join(res, "mark.svg"), "w") as f:
         f.write(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="{mark}" fill="currentColor"/></svg>\n')
 
     import resvg_py
-    with open(os.path.join(res, "icon.png"), "wb") as f:
-        f.write(bytes(resvg_py.svg_to_bytes(svg_string=logo, width=1024, height=1024)))
-    print("wrote assets/logo.svg, assets/icon.png, assets/mark.svg")
+    for svg, png in (("logo.svg", "icon.png"), ("logo-dev.svg", "icon-dev.png")):
+        with open(os.path.join(res, png), "wb") as f:
+            f.write(bytes(resvg_py.svg_to_bytes(svg_string=logos[svg], width=1024, height=1024)))
+    print("wrote assets/logo.svg, icon.png, logo-dev.svg, icon-dev.png, mark.svg")
 
 
 if __name__ == "__main__":

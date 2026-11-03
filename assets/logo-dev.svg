@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf8f1"/>
+      <stop offset="1" stop-color="#ebe3d2"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8402d"/>
+      <stop offset="1" stop-color="#ec6a4f"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#ink)"/>
+  <rect x="66" y="66" width="892" height="892" rx="198" fill="none" stroke="#d8ccb4" stroke-width="4"/>
+  <g clip-path="url(#tile)">
+    <path d="M682 40h88v214l-44-36l-44 36z" fill="url(#ribbon)"/>
+  </g>
+  <path d="M295.12 570.23V622.2H728.88V570.23ZM302.4 325.9V374.96H491.36V325.9ZM293.66 418.68V468.71H496.7V418.68ZM481.64 525.06V762.1H540.9V525.06ZM369.43 343.87V546.91H427.24V343.87ZM524.39 325.9V374.96H722.08V325.9ZM517.1 418.68V468.71H730.34V418.68ZM590.93 343.87V546.91H649.71V343.87ZM463.67 593.06C425.78 641.63 352.92 686.32 282 708.67C294.63 719.84 312.12 742.67 320.86 756.76C393.72 728.1 466.1 674.67 509.81 612.49ZM558.39 594.03 511.27 614.92C555.47 675.15 628.82 727.61 702.65 754.81C711.4 739.76 728.88 716.93 742 705.27C669.62 684.87 595.79 641.63 558.39 594.03Z" fill="#241f33"/>
+</svg>

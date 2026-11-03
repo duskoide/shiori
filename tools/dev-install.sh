@@ -42,7 +42,7 @@ echo "installed $BIN ($("$BIN" --version))"
 
 [ "$(uname -s)" = Linux ] || exit 0
 mkdir -p "$(dirname "$DESKTOP_FILE")" "$(dirname "$ICON_FILE")"
-cp assets/icon.png "$ICON_FILE"
+cp assets/icon-dev.png "$ICON_FILE"
 cat >"$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Type=Application

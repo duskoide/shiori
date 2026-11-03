@@ -44,7 +44,11 @@ func Run(home, session string) error {
 			Content:         ui.View(a.view),
 			Page:            mygo.PageOptions{DevTools: devTools()},
 		})
-		_ = a.win.SetIcon(assets.Icon) // packages carry it too; this covers go run and plain builds
+		icon := assets.Icon
+		if IsDev() {
+			icon = assets.IconDev
+		}
+		_ = a.win.SetIcon(icon) // packages carry it too; this covers go run and plain builds
 		a.win.OnClosed(func() {
 			a.shutdown()
 			a.win = nil

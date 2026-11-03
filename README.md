@@ -84,8 +84,8 @@ make package      # platform package via mygo build
 ```
 
 The dev edition is a build of the working copy that runs beside the
-installed Shiori without touching it: it is named Shiori Dev (with a DEV
-mark by the name in the sidebar), keeps its files in `~/.config/shiori-dev`, runs its
+installed Shiori without touching it: it is named Shiori Dev, with a light icon and a DEV
+mark by the name in the sidebar, keeps its files in `~/.config/shiori-dev`, runs its
 terminals in the herdr-core session `shiori-dev`, and never updates
 itself. `HC_SESSION=default shiori-dev` shows your usual terminals instead,
 and `SHIORI_HOME` its files elsewhere. Run `make dev-install` again to take

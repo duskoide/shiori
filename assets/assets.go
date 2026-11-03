@@ -10,6 +10,12 @@ import _ "embed"
 //go:embed icon.png
 var Icon []byte
 
+// IconDev is the dev edition's icon: the same on a paper tile, the
+// character in ink, so it tells apart from the release in a dock.
+//
+//go:embed icon-dev.png
+var IconDev []byte
+
 // Mark is the bare 栞, an SVG in currentColor, 24×24.
 //
 //go:embed mark.svg
