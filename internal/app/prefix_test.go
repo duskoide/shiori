@@ -12,7 +12,6 @@ func TestPrefixKeyThenKey(t *testing.T) {
 	a, _ := uxApp(t)
 	tt := uxTester(a)
 	km := a.keymap.Clone()
-	km.Bind("global", chord(t, "ctrl-b"), keys.Action{Command: keys.PrefixCommand})
 	km.Bind(keys.PrefixSection, chord(t, "a"), keys.Action{Command: "app.settings"})
 	a.keymap = km
 	settle(tt)
@@ -20,33 +19,62 @@ func TestPrefixKeyThenKey(t *testing.T) {
 	tt.Key(ui.Ctrl, ui.KeyB)
 	settle(tt)
 	if !a.prefixPending() {
-		t.Fatal("the prefix key did not wait for another")
+		t.Fatal("the prefix key did not enter command mode")
 	}
-	if !tt.HasText("Ctrl+B …") {
-		t.Fatal("the status bar does not show the pending prefix")
+	if !tt.HasText("COMMAND MODE") || !tt.HasText("COMMAND · Ctrl+B") {
+		t.Fatalf("command mode is not shown: %q", tt.Texts())
 	}
 	tt.Key(0, ui.KeyA)
 	settle(tt)
 	if a.prefixPending() || !a.settings {
 		t.Fatalf("pending %v, settings %v", a.prefixPending(), a.settings)
 	}
+	if tt.HasText("COMMAND MODE") {
+		t.Fatal("command mode is still shown")
+	}
 }
 
-func TestPrefixUnboundKeyCancels(t *testing.T) {
+func TestPrefixUnboundKeyAndEscCancel(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	for _, key := range []ui.Key{ui.KeyEscape, ui.KeyQ} {
+		tt.Key(ui.Ctrl, ui.KeyB)
+		settle(tt)
+		if !a.prefixPending() {
+			t.Fatal("not in command mode")
+		}
+		tt.Key(0, key)
+		settle(tt)
+		if a.prefixPending() || a.settings {
+			t.Fatalf("key %v did not end command mode", key)
+		}
+	}
+}
+
+func TestDirectKeysAreGone(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	n := len(a.space().Tabs)
+	tt.Key(ui.Ctrl|ui.Shift, ui.KeyT) // New tab, before
+	settle(tt)
+	a.runPosted()
+	if len(a.space().Tabs) != n || a.prefixPending() {
+		t.Fatal("a direct key still runs")
+	}
+}
+
+func TestPrefixKeyWithModifiersHeld(t *testing.T) {
 	a, _ := uxApp(t)
 	tt := uxTester(a)
 	km := a.keymap.Clone()
-	km.Bind("global", chord(t, "ctrl-b"), keys.Action{Command: keys.PrefixCommand})
+	km.Bind(keys.PrefixSection, chord(t, "a"), keys.Action{Command: "app.settings"})
 	a.keymap = km
 	settle(tt)
 	tt.Key(ui.Ctrl, ui.KeyB)
 	settle(tt)
-	tt.Key(0, ui.KeyQ)
+	tt.Key(ui.Ctrl, ui.KeyA) // Ctrl still held
 	settle(tt)
-	if a.prefixPending() || a.settings {
-		t.Fatal("an unbound key did not end the wait")
+	if !a.settings {
+		t.Fatal("Ctrl+A did not run the binding of A")
 	}
-	// Without the prefix key, the prefix section's keys do nothing.
-	tt.Key(0, ui.KeyC)
-	settle(tt)
 }

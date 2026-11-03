@@ -400,7 +400,10 @@ func (a *App) bindingRows(section string) []bindingRow {
 			specs[act.Spec()] = true
 		}
 	}
-	if section == "global" || section == keys.PrefixSection {
+	if section == "global" {
+		// The window reads the prefix key alone; the other keys are the prefix section's.
+		specs = map[string]bool{keys.PrefixCommand: true}
+	} else if section == keys.PrefixSection {
 		for _, c := range a.allCommands() {
 			// A mod's hidden commands are only out of the palette: keys still run them.
 			if (c.hidden && c.Mod == "") || specs[c.Name] {
@@ -1001,9 +1004,9 @@ func (a *App) keyboardPage(c *ui.Context, k *colors) {
 	ui.Text(c, "Click + to add keys to an action, a key to change it, its × to remove it. Esc cancels.").FontSize(12).TextColor(k.muted)
 
 	q := strings.ToLower(strings.TrimSpace(a.set.query))
-	a.bindingSection(c, k, "Window", "Keys that work wherever the focus is.", "global", q)
+	a.bindingSection(c, k, "Prefix key", "The one key the window reads itself. It enters command mode, which shows the keys below; the next key runs its action.", "global", q)
 	a.prefixNote(c, k)
-	a.bindingSection(c, k, "Prefix", "Keys pressed after the prefix key, one at a time, as in tmux: the prefix key, then the key. Esc or a key that is not bound cancels.", keys.PrefixSection, q)
+	a.bindingSection(c, k, "Prefix", "Keys of command mode: press the prefix key, then one of these. Esc or a key that is not bound cancels.", keys.PrefixSection, q)
 	a.bindingSection(c, k, "Terminal", "Keys a terminal takes before the program sees them.", "terminal", q)
 	for _, s := range a.otherSections() {
 		a.bindingSection(c, k, s, "A section of herdr-app's, kept in keys.json as it is.", s, q)
@@ -1176,7 +1179,7 @@ func (a *App) applyRecording() {
 // lists do not offer, as text a program should type.
 func (a *App) addBindingForm(c *ui.Context, k *colors) {
 	settingsGroup(c, k, "Add a binding", "Any action keys.json takes: a command (tab.new), a command with its value (pane.go:left), send:<text> to type text in the terminal, or terminal to give the key to the program.", func() {
-		sections := []string{"global", keys.PrefixSection, "terminal"}
+		sections := []string{keys.PrefixSection, "global", "terminal"}
 		sections = append(sections, a.otherSections()...)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Select(c, &a.set.addSection, sections).Width(130).Label("Section")
@@ -1290,13 +1293,13 @@ func (a *App) prefixNote(c *ui.Context, k *colors) {
 	leaders := a.keymap.PrefixChords()
 	msg, col := "", k.muted
 	if len(leaders) == 0 {
-		msg, col = "No prefix key is set, so the prefix keys below do nothing. Give the Prefix key action (Window) a key, such as Ctrl+B or Ctrl+Space.", k.blocked
+		msg, col = "No prefix key is set, so the keys below cannot be reached. Give the Prefix key action a key, such as Ctrl+B.", k.blocked
 	} else {
 		names := make([]string, len(leaders))
 		for i, l := range leaders {
 			names[i] = l.String()
 		}
-		msg = "Prefix key: " + strings.Join(names, ", ") + ". Press it twice to type it in the terminal."
+		msg = "Prefix key: " + strings.Join(names, ", ") + ". Press it twice to type it in the terminal; hold its modifiers for the next key if you like (Ctrl+B, then Ctrl+C for C)."
 	}
 	ui.Text(c, msg).FontSize(12).TextColor(col)
 }

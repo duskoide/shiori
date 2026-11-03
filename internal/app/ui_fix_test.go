@@ -187,29 +187,6 @@ func TestLoadKeysKeepsValidBindings(t *testing.T) {
 	}
 }
 
-func TestShortcutAllowed(t *testing.T) {
-	a := newApp(t.TempDir(), "x")
-	if !a.shortcutAllowed("tab.close") {
-		t.Fatal("blocked with nothing open")
-	}
-	a.palette.open = true
-	if a.shortcutAllowed("tab.close") || !a.shortcutAllowed("app.palette") || !a.shortcutAllowed("mod.open") {
-		t.Fatal("palette rules")
-	}
-	a.palette.open = false
-	for _, set := range []func(){
-		func() { a.prompt = &promptState{} },
-		func() { a.confirm = &confirmState{} },
-		func() { a.settings = true },
-	} {
-		a.prompt, a.confirm, a.settings = nil, nil, false
-		set()
-		if a.shortcutAllowed("tab.close") || a.shortcutAllowed("app.palette") {
-			t.Fatal("a modal lets shortcuts through")
-		}
-	}
-}
-
 func TestFixedSizeNodesAreNoWeights(t *testing.T) {
 	px, w := 268.0, 2.0
 	fixed := &layout.Node{Size: &layout.Size{Px: &px}}

@@ -52,7 +52,7 @@ func TestExampleOpenInEditor(t *testing.T) {
 	if _, err := runMod(t, a, "open-in-editor.open", nil); err != nil {
 		t.Fatal(err)
 	}
-	if got := a.keymap.KeysFor("open-in-editor.open"); len(got) != 1 || got[0] != "Ctrl+Alt+E" {
+	if got := a.keymap.PrefixKeysFor("open-in-editor.open"); len(got) != 1 || got[0] != "Ctrl+B Ctrl+Alt+E" {
 		t.Fatalf("keys %v", got)
 	}
 }

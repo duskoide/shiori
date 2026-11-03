@@ -49,7 +49,7 @@ const toolsManifest = `{
     {"name": "fail", "title": "Tools: fail", "run": ["./fail.sh"], "hidden": true},
     {"name": "slow", "title": "Tools: slow", "run": ["./slow.sh"], "timeout": 0.3}
   ],
-  "keys": {"global": {"ctrl-alt-w": "tools.where", "ctrl-shift-t": "tools.say"}}
+  "keys": {"global": {"ctrl-alt-w": "tools.where", "c": "tools.say"}}
 }`
 
 var toolsScripts = map[string]string{
@@ -110,10 +110,10 @@ func TestTurningAModOn(t *testing.T) {
 		t.Fatalf("palette %v", titles)
 	}
 	// Its keys where they are free; the one the app has stays the app's.
-	if got := a.keymap.KeysFor("tools.where"); len(got) != 1 || got[0] != "Ctrl+Alt+W" {
+	if got := a.keymap.PrefixKeysFor("tools.where"); len(got) != 1 || got[0] != "Ctrl+B Ctrl+Alt+W" {
 		t.Fatalf("keys %v", got)
 	}
-	if len(a.keymap.KeysFor("tools.say")) != 0 || a.mods["tools"].taken["global"][0].String() != "Ctrl+Shift+T" {
+	if len(a.keymap.PrefixKeysFor("tools.say")) != 0 || a.mods["tools"].taken[keys.PrefixSection][0].String() != "C" {
 		t.Fatalf("taken %v", a.mods["tools"].taken)
 	}
 	if err := a.setModEnabled("tools", false); err != nil || a.findCommand("tools.where") != nil {
@@ -200,24 +200,24 @@ func TestModsThatDoNotLoad(t *testing.T) {
 func TestKeysJSONOverTheModsKeys(t *testing.T) {
 	a := toolsApp(t)
 	a.setModEnabled("tools", true)
-	os.WriteFile(filepath.Join(a.home, "keys.json"), []byte(`{"global":{"ctrl-alt-w":"none","ctrl-alt-s":"tools.say","ctrl-shift-t":"none"}}`), 0o644)
+	os.WriteFile(filepath.Join(a.home, "keys.json"), []byte(`{"prefix":{"ctrl-alt-w":"none","ctrl-alt-s":"tools.say","c":"none"}}`), 0o644)
 	a.loadKeys()
-	if len(a.keymap.KeysFor("tools.where")) != 0 || len(a.keymap.KeysFor("tab.new")) != 0 {
-		t.Fatalf("none kept: %v %v", a.keymap.KeysFor("tools.where"), a.keymap.KeysFor("tab.new"))
+	if len(a.keymap.PrefixKeysFor("tools.where")) != 0 || len(a.keymap.PrefixKeysFor("tab.new")) != 0 {
+		t.Fatalf("none kept: %v %v", a.keymap.PrefixKeysFor("tools.where"), a.keymap.PrefixKeysFor("tab.new"))
 	}
-	if got := a.keymap.KeysFor("tools.say"); len(got) != 1 {
+	if got := a.keymap.PrefixKeysFor("tools.say"); len(got) != 1 {
 		t.Fatalf("say %v", got)
 	}
 	// Removing a default key in the panel writes none.
 	os.Remove(filepath.Join(a.home, "keys.json"))
 	a.loadKeys()
-	c, _ := keys.ParseChord("ctrl-shift-n")
-	a.unbindKey("global", c)
-	if act := readKeysFile(t, a).Sections["global"][c]; !act.None {
+	c, _ := keys.ParseChord("shift-c")
+	a.unbindKey(keys.PrefixSection, c)
+	if act := readKeysFile(t, a).Sections[keys.PrefixSection][c]; !act.None {
 		t.Fatalf("keys.json has %+v", act)
 	}
 	// Bringing it back leaves nothing to keep.
-	a.resetBinding("global", "space.new")
+	a.resetBinding(keys.PrefixSection, "space.new")
 	if _, err := os.Stat(filepath.Join(a.home, "keys.json")); !os.IsNotExist(err) {
 		t.Fatalf("keys.json stays: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestModCommandsGroupInTheKeyboardPage(t *testing.T) {
 	a := toolsApp(t)
 	a.setModEnabled("tools", true)
 	groups := map[string]string{}
-	for _, r := range a.bindingRows("global") {
+	for _, r := range a.bindingRows(keys.PrefixSection) {
 		groups[r.spec] = r.group
 	}
 	if groups["tools.where"] != "Tools" || groups["tools.fail"] != "Tools" {

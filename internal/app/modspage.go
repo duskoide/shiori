@@ -188,7 +188,7 @@ func (a *App) modDetails(c *ui.Context, k *colors, st *modState) {
 				if len(mc.Run) > 0 {
 					label += "  ·  " + strings.Join(mc.Run, " ")
 				}
-				for _, ks := range a.keymap.KeysFor(st.ID + "." + mc.Name) {
+				for _, ks := range a.keymap.PrefixKeysFor(st.ID + "." + mc.Name) {
 					label += "  ·  " + ks
 				}
 				chip(label, false)

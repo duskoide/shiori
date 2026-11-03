@@ -37,10 +37,10 @@ func TestModsPageTurnsAModOn(t *testing.T) {
 		t.Fatalf("texts %q", tt.Texts())
 	}
 	mustClick(t, tt, "Turn Tools on")
-	if !a.mods["tools"].on || !tt.HasText("Tools: where  ·  ./where.sh  ·  Ctrl+Alt+W") {
+	if !a.mods["tools"].on || !tt.HasText("Tools: where  ·  ./where.sh  ·  Ctrl+B Ctrl+Alt+W") {
 		t.Fatalf("on %v; texts %q", a.mods["tools"].on, tt.Texts())
 	}
-	if !tt.HasText("Ctrl+Shift+T is New tab already, so the mod's binding of it is not used.") {
+	if !tt.HasText("C is New tab already, so the mod's binding of it is not used.") {
 		t.Fatalf("texts %q", tt.Texts())
 	}
 	// A mod that does not load does not turn on.

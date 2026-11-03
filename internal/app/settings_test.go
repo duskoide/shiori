@@ -176,12 +176,12 @@ func TestSettingsRecordAKey(t *testing.T) {
 	if a.set.rec != nil {
 		t.Fatal("still recording")
 	}
-	want := []string{"Ctrl+Alt+N", "Ctrl+Shift+T"}
-	if got := a.keymap.KeysFor("tab.new"); strings.Join(got, ",") != strings.Join(want, ",") {
+	want := []string{"Ctrl+B C", "Ctrl+B Ctrl+Alt+N"}
+	if got := a.keymap.PrefixKeysFor("tab.new"); strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("keys %v", got)
 	}
 	// keys.json holds what differs from the defaults.
-	if got := readKeysFile(t, a).KeysFor("tab.new"); strings.Join(got, ",") != "Ctrl+Alt+N" {
+	if got := readKeysFile(t, a).ChordsFor(keys.PrefixSection, "tab.new"); len(got) != 1 || got[0].String() != "Ctrl+Alt+N" {
 		t.Fatalf("keys.json %v", got)
 	}
 	// The window's own write reads back as no change.
@@ -205,7 +205,7 @@ func TestSettingsRecordAKey(t *testing.T) {
 	mustClick(t, tt, "Ctrl+Alt+N")
 	tt.Key(ui.Ctrl|ui.Alt, ui.KeyM)
 	settle(tt)
-	if got := a.keymap.KeysFor("tab.new"); strings.Join(got, ",") != "Ctrl+Alt+M,Ctrl+Shift+T" {
+	if got := a.keymap.PrefixKeysFor("tab.new"); strings.Join(got, ",") != "Ctrl+B C,Ctrl+B Ctrl+Alt+M" {
 		t.Fatalf("replaced: %v", got)
 	}
 }
@@ -218,19 +218,19 @@ func TestSettingsKeyTakenElsewhereMoves(t *testing.T) {
 	tt.Type("new tab")
 	settle(tt)
 	mustClick(t, tt, "Add keys for New tab")
-	tt.Key(ui.Ctrl|ui.Shift, ui.KeyP)
+	tt.Key(0, ui.KeySpace)
 	settle(tt)
-	if len(a.keymap.KeysFor("app.palette")) != 0 {
-		t.Fatalf("the palette kept its key: %v", a.keymap.KeysFor("app.palette"))
+	if len(a.keymap.PrefixKeysFor("app.palette")) != 0 {
+		t.Fatalf("the palette kept its key: %v", a.keymap.PrefixKeysFor("app.palette"))
 	}
-	if !tt.HasText("Ctrl+Shift+P now runs New tab, no longer Command palette") {
+	if !tt.HasText("Space now runs New tab, no longer Command palette") {
 		t.Fatalf("texts %q", tt.Texts())
 	}
-	a.resetBinding("global", "app.palette")
-	if got := a.keymap.KeysFor("app.palette"); len(got) != 1 || got[0] != "Ctrl+Shift+P" {
+	a.resetBinding(keys.PrefixSection, "app.palette")
+	if got := a.keymap.PrefixKeysFor("app.palette"); len(got) != 1 || got[0] != "Ctrl+B Space" {
 		t.Fatalf("palette after reset %v", got)
 	}
-	if strings.Contains(strings.Join(a.keymap.KeysFor("tab.new"), ","), "Ctrl+Shift+P") {
+	if strings.Contains(strings.Join(a.keymap.PrefixKeysFor("tab.new"), ","), "Space") {
 		t.Fatal("New tab kept the key reset to the palette")
 	}
 }
@@ -242,15 +242,15 @@ func TestSettingsRemoveAndResetAKey(t *testing.T) {
 	settle(tt)
 	tt.Type("new tab")
 	settle(tt)
-	r, _ := tt.Find("Ctrl+Shift+T")
+	r, _ := tt.Find("C")
 	tt.Move(r.X+r.W/2, r.Y+r.H/2)
 	settle(tt)
-	mustClick(t, tt, "Remove Ctrl+Shift+T")
-	if len(a.keymap.KeysFor("tab.new")) != 0 || a.set.rec != nil {
-		t.Fatalf("keys %v, rec %+v", a.keymap.KeysFor("tab.new"), a.set.rec)
+	mustClick(t, tt, "Remove C")
+	if len(a.keymap.PrefixKeysFor("tab.new")) != 0 || a.set.rec != nil {
+		t.Fatalf("keys %v, rec %+v", a.keymap.PrefixKeysFor("tab.new"), a.set.rec)
 	}
 	mustClick(t, tt, "Reset New tab")
-	if got := a.keymap.KeysFor("tab.new"); len(got) != 1 {
+	if got := a.keymap.PrefixKeysFor("tab.new"); len(got) != 1 {
 		t.Fatalf("keys after reset %v", got)
 	}
 }

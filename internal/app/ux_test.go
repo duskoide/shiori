@@ -90,15 +90,17 @@ func TestNewMenuButtonOffersAgentsAndASpace(t *testing.T) {
 func TestPaletteShortcutClosesThePalette(t *testing.T) {
 	a, _ := uxApp(t)
 	tt := uxTester(a)
-	tt.Key(ui.Ctrl|ui.Shift, ui.KeyP)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Key(0, ui.KeySpace)
 	settle(tt)
 	if !a.palette.open {
 		t.Fatal("the palette did not open")
 	}
-	tt.Key(ui.Ctrl|ui.Shift, ui.KeyP)
+	tt.Key(0, ui.KeyEscape)
 	settle(tt)
 	if a.palette.open {
-		t.Fatal("the key that opened the palette did not close it")
+		t.Fatal("Esc did not close the palette")
 	}
 }
 
@@ -170,7 +172,9 @@ func TestRenameDialogButtons(t *testing.T) {
 	a, _ := uxApp(t)
 	tt := uxTester(a)
 	tab := a.tab()
-	tt.Key(0, ui.KeyF2)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Key(0, ui.KeyComma)
 	settle(tt)
 	if a.prompt == nil || !tt.HasText("Leave it empty to name the tab after its program.") {
 		t.Fatalf("prompt %+v", a.prompt)
@@ -180,7 +184,9 @@ func TestRenameDialogButtons(t *testing.T) {
 	if a.prompt != nil || tab.Name != "" {
 		t.Fatalf("cancel: %+v %q", a.prompt, tab.Name)
 	}
-	tt.Key(0, ui.KeyF2)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Key(0, ui.KeyComma)
 	settle(tt)
 	tt.Type("build")
 	mustClick(t, tt, "Save")

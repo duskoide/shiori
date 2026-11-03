@@ -92,12 +92,12 @@ func TestDefaultParsesCleanly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(km.Sections["global"]) < 50 || len(km.Sections["terminal"]) != 8 {
+	if len(km.Sections["global"]) != 1 || len(km.Sections["terminal"]) != 8 {
 		t.Errorf("sections: global=%d terminal=%d", len(km.Sections["global"]), len(km.Sections["terminal"]))
 	}
-	want := Action{Command: "tab.new"}
-	if a, ok := Default().Lookup("global", Chord{Ctrl: true, Shift: true, Key: "t"}); !ok || a != want {
-		t.Errorf("lookup ctrl-shift-t = %+v %v", a, ok)
+	want := Action{Command: PrefixCommand}
+	if a, ok := Default().Lookup("global", Chord{Ctrl: true, Key: "b"}); !ok || a != want {
+		t.Errorf("lookup ctrl-b = %+v %v", a, ok)
 	}
 	if a, ok := km.Lookup("terminal", Chord{Ctrl: true, Key: "left"}); !ok || a.Send != "\x1bb" {
 		t.Errorf("ctrl-left = %+v", a)
@@ -114,7 +114,7 @@ func TestDefaultParsesCleanly(t *testing.T) {
 }
 
 func TestKeysFor(t *testing.T) {
-	km := Default()
+	km := legacyKeys()
 	tests := []struct {
 		cmd  string
 		want []string
@@ -200,19 +200,19 @@ func TestEncodeRoundTrips(t *testing.T) {
 }
 
 func TestBindUnbindChordsFor(t *testing.T) {
-	km := Default().Clone()
+	km := legacyKeys().Clone()
 	c := Chord{Ctrl: true, Shift: true, Key: "t"}
 	old, had := km.Bind("global", c, Action{Command: "pane.zoom"})
 	if !had || old.Command != "tab.new" {
 		t.Fatalf("old %v %v", old, had)
 	}
-	if got := km.ChordsFor("global", "pane.zoom"); len(got) != 2 {
+	if got := km.ChordsFor("global", "pane.zoom"); len(got) != 1 {
 		t.Fatalf("zoom chords %v", got)
 	}
 	if !km.Unbind("global", c) || km.Unbind("global", c) {
 		t.Fatal("unbind")
 	}
-	if Default().Sections["global"][c].Command != "tab.new" {
+	if legacyKeys().Sections["global"][c].Command != "tab.new" {
 		t.Fatal("the clone shares its maps")
 	}
 	if _, had := (&Keymap{}).Bind("new", c, Action{Terminal: true}); had {
@@ -221,7 +221,7 @@ func TestBindUnbindChordsFor(t *testing.T) {
 }
 
 func TestOverlayAddFreeDiff(t *testing.T) {
-	base := Default()
+	base := legacyKeys()
 	mod := &Keymap{}
 	mod.Bind("global", Chord{Ctrl: true, Alt: true, Key: "g"}, Action{Command: "git.branch"})
 	mod.Bind("global", Chord{Ctrl: true, Shift: true, Key: "t"}, Action{Command: "git.tab"}) // taken
@@ -264,20 +264,20 @@ func TestOverlayAddFreeDiff(t *testing.T) {
 
 func TestPrefixKeys(t *testing.T) {
 	km := Default()
-	if len(km.PrefixChords()) != 0 {
-		t.Fatal("no prefix key by default")
-	}
-	if got := km.PrefixKeysFor("tab.new"); got != nil {
-		t.Fatalf("no prefix key, yet %v", got)
+	if got := km.PrefixChords(); len(got) != 1 || got[0].String() != "Ctrl+B" {
+		t.Fatalf("the default prefix key is %v", got)
 	}
 	if len(km.Sections[PrefixSection]) == 0 {
 		t.Fatal("the default keys have a prefix section")
 	}
-	km.Bind("global", Chord{Ctrl: true, Key: "b"}, Action{Command: PrefixCommand})
+	none := &Keymap{Sections: map[string]map[Chord]Action{PrefixSection: km.Sections[PrefixSection]}}
+	if got := none.PrefixKeysFor("tab.new"); got != nil {
+		t.Fatalf("no prefix key, yet %v", got)
+	}
 	if got := km.PrefixKeysFor("tab.new"); len(got) != 1 || got[0] != "Ctrl+B C" {
 		t.Fatalf("PrefixKeysFor = %v", got)
 	}
-	if got := km.PrefixKeysFor("pane.go:left"); len(got) != 1 || got[0] != "Ctrl+B H" {
+	if got := km.PrefixKeysFor("pane.go:left"); len(got) != 2 || got[0] != "Ctrl+B H" || got[1] != "Ctrl+B Left" {
 		t.Fatalf("PrefixKeysFor with arg = %v", got)
 	}
 	// The prefix section's keys are not the window's.
@@ -286,4 +286,19 @@ func TestPrefixKeys(t *testing.T) {
 			t.Fatal("KeysFor returned a prefix key")
 		}
 	}
+}
+
+// legacyKeys is the default keys with the direct chords older versions
+// bound in "global", for the tests of the keymap's machinery.
+func legacyKeys() *Keymap {
+	km := Default()
+	over, err := Parse([]byte(`{"global":{"ctrl-shift-t":"tab.new","alt-]":"tab.next","ctrl-pagedown":"tab.next","ctrl-tab":"tab.next",
+"ctrl-+":"app.zoom_in","ctrl-=":"app.zoom_in","alt-1":"space.select:1","alt-2":"space.select:2","alt-3":"space.select:3","alt-4":"space.select:4",
+"alt-5":"space.select:5","alt-6":"space.select:6","alt-7":"space.select:7","alt-8":"space.select:8","alt-9":"space.select:9",
+"ctrl-shift-/":"app.help","ctrl-shift-?":"app.help","f2":"tab.rename"}}`))
+	if err != nil {
+		panic(err)
+	}
+	km.Overlay(over)
+	return km
 }

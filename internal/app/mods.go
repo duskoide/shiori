@@ -187,6 +187,13 @@ func (a *App) buildKeymap() {
 			continue
 		}
 		if km, err := st.Manifest.Keymap(id); err == nil {
+			// A mod's "global" keys are keys of command mode.
+			if g := km.Sections["global"]; len(g) > 0 {
+				for ch, act := range g {
+					km.Bind(keys.PrefixSection, ch, act)
+				}
+				delete(km.Sections, "global")
+			}
 			st.taken = base.AddFree(km)
 		}
 	}

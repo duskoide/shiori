@@ -77,7 +77,7 @@ or removing a mod applies without a restart.
 | `commands[].run` | A **one-shot** program for this command alone; without it the service handles the command. |
 | `commands[].timeout` | Seconds a one-shot program may run, default 30, at most 600. |
 | `commands[].hidden` | Not in the palette; still runs from keys and `shiori do`, and shows on the Keyboard page. |
-| `keys` | Default key bindings, in `keys.json`'s format. Only the mod's own commands may be bound. |
+| `keys` | Default key bindings, in `keys.json`'s format. Only the mod's own commands may be bound. Its `global` keys are keys of command mode (after the prefix key). |
 | `events` | Events the service always gets (it can also subscribe when it connects). |
 
 Unknown fields are an error, so a typo does not go unnoticed; a manifest

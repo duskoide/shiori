@@ -57,10 +57,12 @@ func TestChangesPanel(t *testing.T) {
 	if a.chg.w != nil {
 		t.Fatal("a hidden panel watches")
 	}
-	if got := a.keysFor("layout.toggle:changes"); got != "Ctrl+Shift+G" {
+	if got := a.keysFor("layout.toggle:changes"); got != "Ctrl+B G" {
 		t.Fatalf("key %q", got)
 	}
-	tt.Key(ui.Ctrl|ui.Shift, ui.KeyG)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Key(0, ui.KeyG)
 	frameUntil(t, tt, "the changes", func() bool { return tt.HasText("Change main.go") && tt.HasText("Change new.go") })
 	b, _ := os.ReadFile(filepath.Join(a.home, "settings.json"))
 	if !strings.Contains(string(b), `"changes": true`) {

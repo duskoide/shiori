@@ -324,51 +324,46 @@ func (a *App) shortcutAllowed(cmd string) bool {
 	return true
 }
 
-// shortcuts runs the "global" keys of keys.json.
+// shortcuts reads the one key the window reads itself: the prefix key,
+// the "global" key bound to app.prefix. Every other key is the prefix
+// section's, once command mode is on.
 func (a *App) shortcuts(c *ui.Context) {
-	if a.prefixPending() {
-		a.prefixShortcuts(c)
+	if a.prefixPending() || a.prompt != nil || a.confirm != nil || a.settings || a.palette.open {
 		return
 	}
 	for chord, act := range a.keymap.Sections["global"] {
-		if act.Command == "" || !a.shortcutAllowed(act.Command) || a.findCommand(act.Command) == nil && a.findCommand(act.Command+":"+act.Arg) == nil {
+		if act.Command != keys.PrefixCommand {
 			continue
 		}
 		mods, key, ok := uiChord(chord)
 		if !ok || !c.Shortcut(mods, key) {
 			continue
 		}
-		cmd, value := act.Command, act.Arg
-		if a.findCommand(cmd+":"+value) != nil {
-			cmd, value = cmd+":"+value, ""
-		}
-		if cmd == keys.PrefixCommand {
-			a.post(a.startPrefix)
-			break // the next frame takes the key after it
-		}
-		if cmd == "app.palette" && a.palette.open {
-			// The key that opened the palette closes it.
-			a.palette.open = false
-			a.focusReq = a.focus[a.activeTab[a.activeSpace]]
-			continue
-		}
-		a.post(func() { a.doAction(cmd, value) })
+		a.post(a.startPrefix)
+		return
 	}
 }
 
 // keysFor is how the palette shows a command's keys.
 func (a *App) keysFor(name string) string {
-	cmd, value, _ := cutColon(name)
-	for _, k := range a.keymap.KeysFor(name) {
-		return k
-	}
-	if value != "" {
-		for _, k := range a.keymap.KeysFor(cmd) {
-			return k
+	if name == keys.PrefixCommand {
+		if l := a.keymap.PrefixChords(); len(l) > 0 {
+			return l[0].String()
 		}
+		return ""
 	}
 	for _, k := range a.keymap.PrefixKeysFor(name) {
 		return k
+	}
+	// The window's own keys are the prefix's alone: what "global" binds is not read.
+	for _, k := range a.keymap.KeysForExcept(name, "global") {
+		return k
+	}
+	if _, value, _ := cutColon(name); value != "" {
+		cmd, _, _ := cutColon(name)
+		for _, k := range a.keymap.PrefixKeysFor(cmd) {
+			return k
+		}
 	}
 	return ""
 }

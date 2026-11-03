@@ -144,11 +144,10 @@ type App struct {
 	modOrder   []string
 	modNoticed map[string]bool
 	cfg        Settings
-	// prefixUntil is when the wait for the key after the prefix key ends;
-	// zero when none is awaited. Main thread only.
-	prefixUntil time.Time
-	k           *colors
-	sidebarW    float32
+	// prefix is command mode while it lasts, nil otherwise. Main thread only.
+	prefix   *prefixMode
+	k        *colors
+	sidebarW float32
 }
 
 // Settings are the person's preferences, settings.json in the app's home.

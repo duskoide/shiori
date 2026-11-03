@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -227,15 +228,20 @@ func (k *Keymap) Lookup(section string, c Chord) (Action, bool) {
 // first, then the others by name; within a section chords are sorted by
 // display string. The prefix section is left out: see PrefixKeysFor.
 func (k *Keymap) KeysFor(command string) []string {
+	return k.KeysForExcept(command)
+}
+
+// KeysForExcept is KeysFor without the sections named skip.
+func (k *Keymap) KeysForExcept(command string, skip ...string) []string {
 	name, arg, withArg := strings.Cut(command, ":")
 	sections := make([]string, 0, len(k.Sections))
 	for s := range k.Sections {
-		if s != "global" && s != PrefixSection {
+		if s != "global" && s != PrefixSection && !slices.Contains(skip, s) {
 			sections = append(sections, s)
 		}
 	}
 	sort.Strings(sections)
-	if _, ok := k.Sections["global"]; ok {
+	if _, ok := k.Sections["global"]; ok && !slices.Contains(skip, "global") {
 		sections = append([]string{"global"}, sections...)
 	}
 	var out []string
