@@ -24,6 +24,7 @@ func Run(home, session string) error {
 	if err := terminal.Load(); err != nil {
 		return fmt.Errorf("cannot load the terminal emulator (libghostty-vt): %w", err)
 	}
+	mygo.App.SetName(appName())
 	a := newApp(home, session)
 	l, err := a.listen()
 	if err != nil {
@@ -32,7 +33,7 @@ func Run(home, session string) error {
 	defer l.Close()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:           "Shiori",
+			Title:           appName(),
 			Width:           1280,
 			Height:          820,
 			MinWidth:        640,

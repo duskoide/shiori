@@ -256,8 +256,35 @@ func newApp(home, session string) *App {
 	return a
 }
 
+// Edition is "dev" for a build of the working copy (make run, make
+// dev-install), which runs beside the installed Shiori: files of its own,
+// a herdr-core session of its own, its own name, no updates. "" is a
+// release. Set before DefaultHome and Run.
+var Edition string
+
+// IsDev reports whether this is the dev edition.
+func IsDev() bool { return Edition == "dev" }
+
+// appName is the window's and the app's name.
+func appName() string {
+	if IsDev() {
+		return "Shiori Dev"
+	}
+	return "Shiori"
+}
+
+// DefaultSession is the herdr-core session to use: $HC_SESSION, else the
+// default one, or "shiori-dev" for the dev edition, whose terminals stay
+// apart from the installed Shiori's.
+func DefaultSession() string {
+	if s := os.Getenv("HC_SESSION"); s != "" || !IsDev() {
+		return s
+	}
+	return "shiori-dev"
+}
+
 // DefaultHome is where the app keeps its files: $SHIORI_HOME, else
-// ~/.config/shiori.
+// ~/.config/shiori (~/.config/shiori-dev for the dev edition).
 func DefaultHome() string {
 	if h := os.Getenv("SHIORI_HOME"); h != "" {
 		return h
@@ -265,6 +292,9 @@ func DefaultHome() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = os.TempDir()
+	}
+	if IsDev() {
+		return filepath.Join(dir, "shiori-dev")
 	}
 	home := filepath.Join(dir, "shiori")
 	migrateHome(filepath.Join(dir, "herdr-mygo"), home)

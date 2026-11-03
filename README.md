@@ -76,11 +76,20 @@ builds `shiori` and bundles the latest herdr-core from
 ## Build and run
 
 ```sh
-make build      # ./shiori
-make run
-make check      # vet, tests, gofmt (what CI runs)
-make package    # platform package via mygo build
+make build        # ./shiori
+make run          # build and open the dev edition (./shiori-dev)
+make dev-install  # ~/.local/bin/shiori-dev, and a "Shiori Dev" launcher on Linux
+make check        # vet, tests, gofmt (what CI runs)
+make package      # platform package via mygo build
 ```
+
+The dev edition is a build of the working copy that runs beside the
+installed Shiori without touching it: it is named Shiori Dev (with a DEV
+mark by the name in the sidebar), keeps its files in `~/.config/shiori-dev`, runs its
+terminals in the herdr-core session `shiori-dev`, and never updates
+itself. `HC_SESSION=default shiori-dev` shows your usual terminals instead,
+and `SHIORI_HOME` its files elsewhere. Run `make dev-install` again to take
+newer changes, and `make dev-uninstall` to remove it.
 
 ## Control CLI
 

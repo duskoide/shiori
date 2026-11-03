@@ -29,6 +29,11 @@ func (a *App) brand(c *ui.Context, k *colors) {
 	ui.Row(c).Height(brandHeight).Padding(0, 8, 0, 14).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
 		ui.Icon(c, glyph("logo")).Size(20, 20).TextColor(k.accent)
 		ui.Text(c, "Shiori").FontSize(ts(14)).FontWeight(600).TextColor(k.foreground)
+		if IsDev() {
+			ui.Box(c).Padding(0, 5).Radius(4).Border(1, k.accent).Tooltip("A build of the working copy: its own files and herdr-core session (shiori-dev)").Children(func() {
+				ui.Text(c, "DEV").FontSize(ts(10)).FontWeight(700).TextColor(k.accent).SingleLine()
+			})
+		}
 		ui.Spacer(c)
 		if iconButton(c, k, "search", "Search", 28, 15).Tooltip(withKeys("Search", a.keysFor("mod.open:picker"))).Clicked() {
 			a.post(func() { a.doAction("mod.open", "picker") })

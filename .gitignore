@@ -3,6 +3,7 @@
 mygo_windows_*.syso
 /.research/
 /shiori
+/shiori-dev
 *.test
 *.out
 coverage.*

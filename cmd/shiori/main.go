@@ -12,8 +12,12 @@ import (
 	"github.com/duskoide/shiori/internal/app"
 )
 
-// version is set at build time with -ldflags "-X main.version=…".
-var version = "0.1.0-dev"
+// version is set at build time with -ldflags "-X main.version=…", and
+// edition, "dev" for a build of the working copy, with "-X main.edition=…".
+var (
+	version = "0.1.0-dev"
+	edition = ""
+)
 
 const usage = `shiori - a desktop app for terminals and coding agents (herdr-core client)
 
@@ -31,8 +35,10 @@ Usage:
   shiori --version | --help
 
 Environment:
-  SHIORI_HOME   the app's files (default ~/.config/shiori)
-  HC_SESSION    the herdr-core session to use (default "default")
+  SHIORI_HOME   the app's files (default ~/.config/shiori; shiori-dev for
+                a dev build)
+  HC_SESSION    the herdr-core session to use (default "default";
+                "shiori-dev" for a dev build)
   GITHUB_TOKEN  for shiori update while the repository is private
 `
 
@@ -44,17 +50,22 @@ func main() {
 }
 
 func run(argv []string, out io.Writer) error {
+	app.Edition = edition
 	home := app.DefaultHome()
 	app.Version = version
 	if len(argv) == 0 {
-		return app.Run(home, os.Getenv("HC_SESSION"))
+		return app.Run(home, app.DefaultSession())
 	}
 	switch argv[0] {
 	case "-h", "--help", "help":
 		fmt.Fprint(out, usage)
 		return nil
 	case "-V", "--version", "version":
-		fmt.Fprintln(out, "shiori", version)
+		if app.IsDev() {
+			fmt.Fprintln(out, "shiori", version, "(dev)")
+		} else {
+			fmt.Fprintln(out, "shiori", version)
+		}
 		return nil
 	case "commands":
 		return printJSON(out, app.Commands(home))

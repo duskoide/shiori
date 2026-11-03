@@ -19,6 +19,9 @@ var hereLayout = update.Here
 // runUpdate is "shiori update": it installs the latest release, or the
 // one --version names, in place of this binary and its bundled core.
 func runUpdate(argv []string, out io.Writer, home string) error {
+	if app.IsDev() {
+		return errors.New("this is a dev build of the working copy: update it with make dev-install, not with a release")
+	}
 	check, want := false, ""
 	for i := 0; i < len(argv); i++ {
 		switch a := argv[i]; {
