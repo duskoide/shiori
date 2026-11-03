@@ -129,6 +129,7 @@ func init() {
 		{Name: "layout.toggle", Title: "Toggle sidebar", About: "Show or hide the sidebar, or with id changes the changes panel", Args: []argDef{arg("id")}, run: (*App).cmdLayoutToggle},
 		{Name: "layout.toggle:changes", Title: "Toggle changes", About: "Show or hide the files being changed in the space's folder", run: func(a *App, _ args) (any, error) { return a.cmdLayoutToggle(args{"id": "changes"}) }},
 		{Name: "mod.open", Title: "Open", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdModOpen},
+		{Name: "app.prefix", Title: "Prefix key", About: "Wait for a key of the prefix section of keys.json, as tmux does; bind a key to it to use the prefix keys", run: func(a *App, _ args) (any, error) { a.startPrefix(); return nil, nil }},
 		{Name: "app.palette", Title: "Command palette", run: func(a *App, _ args) (any, error) { a.openPalette(""); return nil, nil }},
 		{Name: "app.help", Title: "Keyboard shortcuts", run: func(a *App, _ args) (any, error) { a.openPalette(""); return nil, nil }},
 		{Name: "app.settings", Title: "Settings", About: "Open the settings, at section appearance, terminal, layout, keyboard, mods, machines, files or about", Args: []argDef{arg("section")}, run: (*App).cmdAppSettings},

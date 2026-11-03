@@ -342,7 +342,7 @@ func (a *App) actionRuns(section, spec string) bool {
 		return false
 	case act.Terminal || act.Command == "":
 		return section == "terminal"
-	case section != "global":
+	case section != "global" && section != keys.PrefixSection:
 		return false // the terminal section's commands are herdr-app's
 	}
 	return a.findCommand(spec) != nil || a.findCommand(act.Command) != nil
@@ -400,7 +400,7 @@ func (a *App) bindingRows(section string) []bindingRow {
 			specs[act.Spec()] = true
 		}
 	}
-	if section == "global" {
+	if section == "global" || section == keys.PrefixSection {
 		for _, c := range a.allCommands() {
 			// A mod's hidden commands are only out of the palette: keys still run them.
 			if (c.hidden && c.Mod == "") || specs[c.Name] {
@@ -421,7 +421,7 @@ func (a *App) bindingRows(section string) []bindingRow {
 	for spec := range specs {
 		r := bindingRow{section: section, spec: spec, title: a.actionTitle(section, spec), runs: a.actionRuns(section, spec),
 			chords: a.keymap.ChordsFor(section, spec), defaults: def.ChordsFor(section, spec)}
-		if section == "global" {
+		if section == "global" || section == keys.PrefixSection {
 			r.group = a.groupOf(spec)
 		}
 		rows = append(rows, r)
@@ -486,7 +486,7 @@ func (r bindingRow) matches(q string) bool {
 func (a *App) otherSections() []string {
 	var out []string
 	for s := range a.keymap.Sections {
-		if s != "global" && s != "terminal" {
+		if s != "global" && s != "terminal" && s != keys.PrefixSection {
 			out = append(out, s)
 		}
 	}
@@ -1002,6 +1002,8 @@ func (a *App) keyboardPage(c *ui.Context, k *colors) {
 
 	q := strings.ToLower(strings.TrimSpace(a.set.query))
 	a.bindingSection(c, k, "Window", "Keys that work wherever the focus is.", "global", q)
+	a.prefixNote(c, k)
+	a.bindingSection(c, k, "Prefix", "Keys pressed after the prefix key, one at a time, as in tmux: the prefix key, then the key. Esc or a key that is not bound cancels.", keys.PrefixSection, q)
 	a.bindingSection(c, k, "Terminal", "Keys a terminal takes before the program sees them.", "terminal", q)
 	for _, s := range a.otherSections() {
 		a.bindingSection(c, k, s, "A section of herdr-app's, kept in keys.json as it is.", s, q)
@@ -1174,7 +1176,7 @@ func (a *App) applyRecording() {
 // lists do not offer, as text a program should type.
 func (a *App) addBindingForm(c *ui.Context, k *colors) {
 	settingsGroup(c, k, "Add a binding", "Any action keys.json takes: a command (tab.new), a command with its value (pane.go:left), send:<text> to type text in the terminal, or terminal to give the key to the program.", func() {
-		sections := []string{"global", "terminal"}
+		sections := []string{"global", keys.PrefixSection, "terminal"}
 		sections = append(sections, a.otherSections()...)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Select(c, &a.set.addSection, sections).Width(130).Label("Section")
@@ -1280,4 +1282,21 @@ func (a *App) fileRow(c *ui.Context, k *colors, name, state string) {
 			a.post(func() { a.notify("Copied " + tildePath(path)) })
 		}
 	})
+}
+
+// prefixNote says which key is the prefix key, and how to set one, above
+// the prefix section's keys.
+func (a *App) prefixNote(c *ui.Context, k *colors) {
+	leaders := a.keymap.PrefixChords()
+	msg, col := "", k.muted
+	if len(leaders) == 0 {
+		msg, col = "No prefix key is set, so the prefix keys below do nothing. Give the Prefix key action (Window) a key, such as Ctrl+B or Ctrl+Space.", k.blocked
+	} else {
+		names := make([]string, len(leaders))
+		for i, l := range leaders {
+			names[i] = l.String()
+		}
+		msg = "Prefix key: " + strings.Join(names, ", ") + ". Press it twice to type it in the terminal."
+	}
+	ui.Text(c, msg).FontSize(12).TextColor(col)
 }

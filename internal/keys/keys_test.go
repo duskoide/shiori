@@ -261,3 +261,29 @@ func TestOverlayAddFreeDiff(t *testing.T) {
 		t.Fatalf("none %+v", a)
 	}
 }
+
+func TestPrefixKeys(t *testing.T) {
+	km := Default()
+	if len(km.PrefixChords()) != 0 {
+		t.Fatal("no prefix key by default")
+	}
+	if got := km.PrefixKeysFor("tab.new"); got != nil {
+		t.Fatalf("no prefix key, yet %v", got)
+	}
+	if len(km.Sections[PrefixSection]) == 0 {
+		t.Fatal("the default keys have a prefix section")
+	}
+	km.Bind("global", Chord{Ctrl: true, Key: "b"}, Action{Command: PrefixCommand})
+	if got := km.PrefixKeysFor("tab.new"); len(got) != 1 || got[0] != "Ctrl+B C" {
+		t.Fatalf("PrefixKeysFor = %v", got)
+	}
+	if got := km.PrefixKeysFor("pane.go:left"); len(got) != 1 || got[0] != "Ctrl+B H" {
+		t.Fatalf("PrefixKeysFor with arg = %v", got)
+	}
+	// The prefix section's keys are not the window's.
+	for _, s := range km.KeysFor("tab.new") {
+		if s == "C" {
+			t.Fatal("KeysFor returned a prefix key")
+		}
+	}
+}

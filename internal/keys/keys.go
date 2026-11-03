@@ -225,12 +225,12 @@ func (k *Keymap) Lookup(section string, c Chord) (Action, bool) {
 // ["Ctrl+Shift+T"]. command is a bare name ("tab.select" matches any
 // argument) or "name:arg" to match one argument. The "global" section comes
 // first, then the others by name; within a section chords are sorted by
-// display string.
+// display string. The prefix section is left out: see PrefixKeysFor.
 func (k *Keymap) KeysFor(command string) []string {
 	name, arg, withArg := strings.Cut(command, ":")
 	sections := make([]string, 0, len(k.Sections))
 	for s := range k.Sections {
-		if s != "global" {
+		if s != "global" && s != PrefixSection {
 			sections = append(sections, s)
 		}
 	}
@@ -427,4 +427,36 @@ func (k *Keymap) Empty() bool {
 		}
 	}
 	return true
+}
+
+// PrefixSection is the section of the keys that follow the prefix key; the
+// prefix key itself is whatever "global" binds to PrefixCommand.
+const (
+	PrefixSection = "prefix"
+	PrefixCommand = "app.prefix"
+)
+
+// PrefixChords returns the chords bound to PrefixCommand, sorted by display string.
+func (k *Keymap) PrefixChords() []Chord {
+	return k.ChordsFor("global", PrefixCommand)
+}
+
+// PrefixKeysFor returns display strings for the prefix sequences that run
+// command, matched as KeysFor does: "Ctrl+B C" is the prefix key, then C.
+// With no prefix key bound there are none.
+func (k *Keymap) PrefixKeysFor(command string) []string {
+	leaders := k.PrefixChords()
+	if len(leaders) == 0 {
+		return nil
+	}
+	name, arg, withArg := strings.Cut(command, ":")
+	var out []string
+	for c, a := range k.Sections[PrefixSection] {
+		if a.Terminal || a.None || a.Send != "" || a.Command != name || (withArg && a.Arg != arg) {
+			continue
+		}
+		out = append(out, leaders[0].String()+" "+c.String())
+	}
+	sort.Strings(out)
+	return out
 }

@@ -194,6 +194,11 @@ func (a *App) termFont() terminal.Font {
 // terminalKey takes the keys of the "terminal" section of keys.json that
 // type text (send:…), before the terminal encodes them.
 func (a *App) terminalKey(pt *paneTerm, mods ui.Modifiers, key ui.Key) bool {
+	if a.prefixPending() {
+		// The key after the prefix key is the window's; one it did not
+		// take (a modifier on its way) is not the program's either.
+		return true
+	}
 	chord, ok := chordOf(mods, key)
 	if !ok {
 		return false
@@ -321,6 +326,10 @@ func (a *App) shortcutAllowed(cmd string) bool {
 
 // shortcuts runs the "global" keys of keys.json.
 func (a *App) shortcuts(c *ui.Context) {
+	if a.prefixPending() {
+		a.prefixShortcuts(c)
+		return
+	}
 	for chord, act := range a.keymap.Sections["global"] {
 		if act.Command == "" || !a.shortcutAllowed(act.Command) || a.findCommand(act.Command) == nil && a.findCommand(act.Command+":"+act.Arg) == nil {
 			continue
@@ -332,6 +341,10 @@ func (a *App) shortcuts(c *ui.Context) {
 		cmd, value := act.Command, act.Arg
 		if a.findCommand(cmd+":"+value) != nil {
 			cmd, value = cmd+":"+value, ""
+		}
+		if cmd == keys.PrefixCommand {
+			a.post(a.startPrefix)
+			break // the next frame takes the key after it
 		}
 		if cmd == "app.palette" && a.palette.open {
 			// The key that opened the palette closes it.
@@ -353,6 +366,9 @@ func (a *App) keysFor(name string) string {
 		for _, k := range a.keymap.KeysFor(cmd) {
 			return k
 		}
+	}
+	for _, k := range a.keymap.PrefixKeysFor(name) {
+		return k
 	}
 	return ""
 }
