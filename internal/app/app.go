@@ -146,6 +146,7 @@ type App struct {
 	cfg        Settings
 	// prefix is command mode while it lasts, nil otherwise. Main thread only.
 	prefix   *prefixMode
+	swallow  swallowedKey
 	k        *colors
 	sidebarW float32
 }
