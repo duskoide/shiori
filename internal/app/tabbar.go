@@ -135,7 +135,7 @@ func (a *App) tabChip(c *ui.Context, k *colors, s *layout.Space, i int, t *layou
 		if active {
 			col = k.foreground
 		}
-		ui.Text(c, label).FontSize(12.8).TextColor(col).SingleLine().Ellipsis("…").MaxWidth(170)
+		ui.Text(c, label).FontSize(ts(12.8)).TextColor(col).SingleLine().Ellipsis("…").MaxWidth(170)
 		if zoomed {
 			ui.Icon(c, glyph("maximize")).Size(11, 11).TextColor(k.accent).Tooltip("A pane of this tab is zoomed")
 		}
@@ -184,13 +184,13 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 				}
 			}
 			ui.Row(c).Gap(4).AlignItems(ui.Center).MinWidth(0).Shrink(1).ClipX().Children(func() {
-				ui.Text(c, plural(len(list), "agent", "agents")).FontSize(11.5).TextColor(k.muted).SingleLine()
+				ui.Text(c, plural(len(list), "agent", "agents")).FontSize(ts(11.5)).TextColor(k.muted).SingleLine()
 				if n := len(waiting); n > 0 {
 					verb := "need"
 					if n == 1 {
 						verb = "needs"
 					}
-					need := ui.Text(c, fmt.Sprintf("· %d %s you", n, verb)).FontSize(11.5).TextColor(k.blocked).SingleLine().
+					need := ui.Text(c, fmt.Sprintf("· %d %s you", n, verb)).FontSize(ts(11.5)).TextColor(k.blocked).SingleLine().
 						Cursor(ui.CursorPointer).Role(ui.RoleButton).Tooltip("Go to the agent that needs you")
 					if need.Clicked() {
 						pane := waiting[0]
@@ -205,14 +205,14 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 				Label("Update to " + v).Tooltip("A newer Shiori is out: see Settings → About")
 			up.Children(func() {
 				ui.Box(c).Size(6, 6).Radius(3).Background(k.accent)
-				ui.Text(c, "Update to "+v).FontSize(11.5).TextColor(k.accent).SingleLine()
+				ui.Text(c, "Update to "+v).FontSize(ts(11.5)).TextColor(k.accent).SingleLine()
 			})
 			if up.Clicked() {
 				a.post(func() { a.openSettings("about") })
 			}
 		}
 		if keys := a.keysFor("app.palette"); keys != "" {
-			hint := ui.Text(c, keys+"  commands").FontSize(11.5).TextColor(k.dim).SingleLine().Shrink(0).
+			hint := ui.Text(c, keys+"  commands").FontSize(ts(11.5)).TextColor(k.dim).SingleLine().Shrink(0).
 				Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("Command palette")
 			if hint.Hovered() {
 				hint.TextColor(k.muted)
@@ -263,6 +263,6 @@ func (a *App) statusMachine(c *ui.Context, k *colors) {
 	row.Children(func() {
 		ui.Box(c).Size(6, 6).Radius(3).Background(dot)
 		ui.Icon(c, glyph(icon)).Size(13, 13).TextColor(k.muted)
-		ui.Text(c, name).FontSize(11.5).TextColor(k.muted).SingleLine()
+		ui.Text(c, name).FontSize(ts(11.5)).TextColor(k.muted).SingleLine()
 	})
 }

@@ -51,9 +51,9 @@ func (a *App) aboutPage(c *ui.Context, k *colors) {
 					ui.Spinner(c).Size(14, 14).TextColor(k.muted)
 				}
 				ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-					ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(col)
+					ui.Text(c, title).FontSize(ts(13)).FontWeight(600).TextColor(col)
 					if detail != "" {
-						ui.Text(c, detail).FontSize(12).TextColor(k.muted).LineHeight(1.35)
+						ui.Text(c, detail).FontSize(ts(12)).TextColor(k.muted).LineHeight(1.35)
 					}
 				})
 			})
@@ -80,7 +80,7 @@ func (a *App) aboutPage(c *ui.Context, k *colors) {
 			})
 		})
 		ui.Text(c, "Installed with a package manager? Update with it instead. After an update, close Shiori and open it again.").
-			FontSize(11.5).TextColor(k.dim).LineHeight(1.35)
+			FontSize(ts(11.5)).TextColor(k.dim).LineHeight(1.35)
 	})
 }
 

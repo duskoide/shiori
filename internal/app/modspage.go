@@ -72,8 +72,8 @@ func (a *App) modsPage(c *ui.Context, k *colors) {
 	if len(a.modOrder) == 0 {
 		ui.Column(c).Padding(28, 16).Gap(6).AlignItems(ui.Center).Radius(10).Border(1, k.border).Children(func() {
 			ui.Icon(c, glyph("puzzle")).Size(26, 26).TextColor(k.dim)
-			ui.Text(c, "No mods yet").FontSize(13).FontWeight(600).TextColor(k.foreground)
-			ui.Text(c, "Put a mod's folder in the mods folder; examples/mods/README.md in Shiori's repository says what goes in it.").FontSize(12).TextColor(k.muted)
+			ui.Text(c, "No mods yet").FontSize(ts(13)).FontWeight(600).TextColor(k.foreground)
+			ui.Text(c, "Put a mod's folder in the mods folder; examples/mods/README.md in Shiori's repository says what goes in it.").FontSize(ts(12)).TextColor(k.muted)
 		})
 		return
 	}
@@ -95,9 +95,9 @@ func (a *App) modCard(c *ui.Context, k *colors, st *modState) {
 			ui.Icon(c, glyph("puzzle")).Size(16, 16).TextColor(k.muted).Shrink(0)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, name).FontSize(13.5).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+					ui.Text(c, name).FontSize(ts(13.5)).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 					if st.Manifest != nil && st.Manifest.Version != "" {
-						ui.Text(c, st.Manifest.Version).FontSize(11.5).TextColor(k.dim).SingleLine()
+						ui.Text(c, st.Manifest.Version).FontSize(ts(11.5)).TextColor(k.dim).SingleLine()
 					}
 					col, bg := k.muted, k.hover
 					if bad {
@@ -106,10 +106,10 @@ func (a *App) modCard(c *ui.Context, k *colors, st *modState) {
 						col, bg = k.done, k.done.Alpha(0.14)
 					}
 					ui.Box(c).Padding(1, 7).Radius(9).Background(bg).Shrink(0).Children(func() {
-						ui.Text(c, word).FontSize(11).FontWeight(600).TextColor(col).SingleLine()
+						ui.Text(c, word).FontSize(ts(11)).FontWeight(600).TextColor(col).SingleLine()
 					})
 				})
-				ui.Text(c, id).FontSize(11).TextColor(k.dim).Font("monospace")
+				ui.Text(c, id).FontSize(ts(11)).TextColor(k.dim).Font("monospace")
 			})
 			on := st.on
 			sw := ui.Switch(c, &on).Label("Turn " + name + " on").Disabled(st.Err != nil)
@@ -125,21 +125,21 @@ func (a *App) modCard(c *ui.Context, k *colors, st *modState) {
 			}
 		})
 		if st.Err != nil {
-			ui.Text(c, st.Err.Error()).FontSize(12).TextColor(k.blocked).LineHeight(1.35)
+			ui.Text(c, st.Err.Error()).FontSize(ts(12)).TextColor(k.blocked).LineHeight(1.35)
 			a.modButtons(c, k, st)
 			return
 		}
 		m := st.Manifest
 		if m.Description != "" {
-			ui.Text(c, m.Description).FontSize(12.5).TextColor(k.muted).LineHeight(1.35)
+			ui.Text(c, m.Description).FontSize(ts(12.5)).TextColor(k.muted).LineHeight(1.35)
 		}
 		if st.manifestChanged(a.cfg) && !st.on {
 			ui.Text(c, "Its manifest changed since it was turned on. Look at what it does now, then turn it on again.").
-				FontSize(12).TextColor(k.blocked).LineHeight(1.35)
+				FontSize(ts(12)).TextColor(k.blocked).LineHeight(1.35)
 		}
 		a.modDetails(c, k, st)
 		if st.svc != nil && st.svc.err != "" && st.svc.state != svcRunning {
-			ui.Text(c, "Its service: "+st.svc.err).FontSize(12).TextColor(k.blocked).LineHeight(1.35)
+			ui.Text(c, "Its service: "+st.svc.err).FontSize(ts(12)).TextColor(k.blocked).LineHeight(1.35)
 		}
 		a.modButtons(c, k, st)
 		if a.set.logs[id] {
@@ -148,7 +148,7 @@ func (a *App) modCard(c *ui.Context, k *colors, st *modState) {
 				log = "Nothing yet."
 			}
 			ui.Scroll(c).MaxHeight(220).Padding(8, 10).Radius(8).Background(k.background).Border(1, k.border).Children(func() {
-				ui.Text(c, log).FontSize(11.5).Font("monospace").TextColor(k.terminalForeground).Selectable()
+				ui.Text(c, log).FontSize(ts(11.5)).Font("monospace").TextColor(k.terminalForeground).Selectable()
 			})
 		}
 	})
@@ -159,13 +159,13 @@ func (a *App) modDetails(c *ui.Context, k *colors, st *modState) {
 	m := st.Manifest
 	line := func(label string, fn func()) {
 		ui.Row(c).Gap(10).AlignItems(ui.Start).Children(func() {
-			ui.Text(c, label).FontSize(11.5).FontWeight(600).TextColor(k.dim).Width(74).Shrink(0).Padding(3, 0, 0, 0)
+			ui.Text(c, label).FontSize(ts(11.5)).FontWeight(600).TextColor(k.dim).Width(74).Shrink(0).Padding(3, 0, 0, 0)
 			ui.Row(c).Grow(1).MinWidth(0).Gap(6).Wrap().AlignItems(ui.Center).Children(fn)
 		})
 	}
 	chip := func(text string, mono bool) {
 		ui.Box(c).Padding(2, 7).Radius(6).Background(k.hover).Children(func() {
-			t := ui.Text(c, text).FontSize(11.5).TextColor(k.foreground)
+			t := ui.Text(c, text).FontSize(ts(11.5)).TextColor(k.foreground)
 			if mono {
 				t.Font("monospace")
 			}
@@ -178,7 +178,7 @@ func (a *App) modDetails(c *ui.Context, k *colors, st *modState) {
 			if m.StartsAtStartup() {
 				when = "with the window"
 			}
-			ui.Text(c, "starts "+when).FontSize(11.5).TextColor(k.muted)
+			ui.Text(c, "starts "+when).FontSize(ts(11.5)).TextColor(k.muted)
 		})
 	}
 	if len(m.Commands) > 0 {
@@ -222,7 +222,7 @@ func (a *App) modDetails(c *ui.Context, k *colors, st *modState) {
 			if act, ok := a.keysBase.Lookup(sec, ch); ok {
 				other = a.actionTitle(sec, act.Spec())
 			}
-			ui.Text(c, fmt.Sprintf("%s is %s already, so the mod's binding of it is not used.", ch, other)).FontSize(11.5).TextColor(k.muted)
+			ui.Text(c, fmt.Sprintf("%s is %s already, so the mod's binding of it is not used.", ch, other)).FontSize(ts(11.5)).TextColor(k.muted)
 		}
 	}
 }

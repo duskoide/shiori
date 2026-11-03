@@ -168,7 +168,7 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 			a.panelTab(c, k, "Files", a.chg.files)
 			if !a.chg.files && a.chg.have && len(snap.Files) > 0 {
 				ui.Box(c).Padding(0, 6).Radius(8).Background(k.hover).Children(func() {
-					ui.Textf(c, "%d", len(snap.Files)).FontSize(11).TextColor(k.muted)
+					ui.Textf(c, "%d", len(snap.Files)).FontSize(ts(11)).TextColor(k.muted)
 				})
 			}
 			ui.Spacer(c)
@@ -182,7 +182,7 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 				} else if t.Hovered() {
 					t.Background(k.hover)
 				}
-				t.Children(func() { ui.Text(c, ".*").FontSize(12).FontWeight(600).TextColor(col) })
+				t.Children(func() { ui.Text(c, ".*").FontSize(ts(12)).FontWeight(600).TextColor(col) })
 				if t.Clicked() {
 					a.files.hidden = !a.files.hidden
 					a.files.cache = nil
@@ -200,7 +200,7 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 		})
 		if a.chg.files {
 			if folder != "" {
-				ui.Text(c, pathOn(machine, folder)).FontSize(11).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
+				ui.Text(c, pathOn(machine, folder)).FontSize(ts(11)).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
 			}
 			ui.Box(c).Height(1).Background(k.border).Shrink(0)
 			a.filesTab(c, k, machine, folder)
@@ -211,7 +211,7 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 			if a.chg.have && snap.Git {
 				what = "what differs from the last commit"
 			}
-			ui.Text(c, pathOn(machine, folder)+" · "+what).FontSize(11).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
+			ui.Text(c, pathOn(machine, folder)+" · "+what).FontSize(ts(11)).TextColor(k.dim).SingleLine().Ellipsis("…").Padding(0, 14, 6, 14).Shrink(0)
 		}
 		ui.Box(c).Height(1).Background(k.border).Shrink(0)
 		switch {
@@ -232,7 +232,7 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 		}
 		if a.chg.have && snap.Truncated {
 			ui.Text(c, "This folder has more files than are looked at; changes past them do not show.").
-				FontSize(11).TextColor(k.dim).Padding(8, 14).LineHeight(1.35).Shrink(0)
+				FontSize(ts(11)).TextColor(k.dim).Padding(8, 14).LineHeight(1.35).Shrink(0)
 		}
 	})
 	// Times ago move on.
@@ -241,9 +241,9 @@ func (a *App) changesPanel(c *ui.Context, k *colors) {
 
 func changesNote(c *ui.Context, k *colors, title, detail string) {
 	ui.Column(c).Padding(20, 14).Gap(4).Children(func() {
-		ui.Text(c, title).FontSize(12.5).TextColor(k.muted)
+		ui.Text(c, title).FontSize(ts(12.5)).TextColor(k.muted)
 		if detail != "" {
-			ui.Text(c, detail).FontSize(11.5).TextColor(k.dim).LineHeight(1.35)
+			ui.Text(c, detail).FontSize(ts(11.5)).TextColor(k.dim).LineHeight(1.35)
 		}
 	})
 }
@@ -297,16 +297,16 @@ func (a *App) changeRow(c *ui.Context, k *colors, snap changes.Snapshot, f chang
 	row.Children(func() {
 		col := kindColor(k, f.Kind)
 		ui.Box(c).Size(16, 16).Radius(4).Background(col.Alpha(0.16)).Center().Shrink(0).Children(func() {
-			ui.Text(c, f.Kind.Letter()).FontSize(10).FontWeight(700).TextColor(col)
+			ui.Text(c, f.Kind.Letter()).FontSize(ts(10)).FontWeight(700).TextColor(col)
 		})
 		nameCol := k.foreground
 		if f.Kind == changes.Deleted {
 			nameCol = k.muted
 		}
-		ui.Text(c, name).FontSize(12.5).TextColor(nameCol).SingleLine().Shrink(0).MaxWidthPercent(70)
-		ui.Text(c, strings.TrimSuffix(dir, "/")).FontSize(11).TextColor(k.dim).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Text(c, name).FontSize(ts(12.5)).TextColor(nameCol).SingleLine().Shrink(0).MaxWidthPercent(70)
+		ui.Text(c, strings.TrimSuffix(dir, "/")).FontSize(ts(11)).TextColor(k.dim).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		ui.Spacer(c)
-		when := ui.Text(c, changes.Since(now, f.Time)).FontSize(11).SingleLine().Shrink(0)
+		when := ui.Text(c, changes.Since(now, f.Time)).FontSize(ts(11)).SingleLine().Shrink(0)
 		if fresh {
 			when.TextColor(k.accent).FontWeight(600)
 		} else {
@@ -366,7 +366,7 @@ func (a *App) panelTab(c *ui.Context, k *colors, title string, active bool) {
 	} else if t.Hovered() {
 		t.Background(k.hover)
 	}
-	t.Children(func() { ui.Text(c, title).FontSize(12.5).FontWeight(600).TextColor(col) })
+	t.Children(func() { ui.Text(c, title).FontSize(ts(12.5)).FontWeight(600).TextColor(col) })
 	if t.Clicked() && !active {
 		a.chg.files = title == "Files"
 	}

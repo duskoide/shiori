@@ -45,8 +45,8 @@ func (a *App) machinesPage(c *ui.Context, k *colors) {
 func machinesNote(c *ui.Context, k *colors, title, detail string) {
 	ui.Column(c).Padding(22, 16).Gap(6).AlignItems(ui.Center).Radius(10).Border(1, k.border).Shrink(0).Children(func() {
 		ui.Icon(c, glyph("server")).Size(24, 24).TextColor(k.dim)
-		ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(k.foreground)
-		ui.Text(c, detail).FontSize(12).TextColor(k.muted)
+		ui.Text(c, title).FontSize(ts(13)).FontWeight(600).TextColor(k.foreground)
+		ui.Text(c, detail).FontSize(ts(12)).TextColor(k.muted)
 	})
 }
 
@@ -60,13 +60,13 @@ func (a *App) machineCard(c *ui.Context, k *colors, m core.Machine) {
 			ui.Icon(c, glyph("server")).Size(16, 16).TextColor(k.muted).Shrink(0)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, name).FontSize(13.5).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+					ui.Text(c, name).FontSize(ts(13.5)).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 					if m.Version != "" {
-						ui.Text(c, "hc "+m.Version).FontSize(11.5).TextColor(k.dim).SingleLine()
+						ui.Text(c, "hc "+m.Version).FontSize(ts(11.5)).TextColor(k.dim).SingleLine()
 					}
 					col := machineDot(k, m)
 					ui.Box(c).Padding(1, 7).Radius(9).Background(col.Alpha(0.14)).Shrink(0).Children(func() {
-						ui.Text(c, word).FontSize(11).FontWeight(600).TextColor(col).SingleLine()
+						ui.Text(c, word).FontSize(ts(11)).FontWeight(600).TextColor(col).SingleLine()
 					})
 				})
 				var where []string
@@ -76,12 +76,12 @@ func (a *App) machineCard(c *ui.Context, k *colors, m core.Machine) {
 					}
 				}
 				if len(where) > 0 {
-					ui.Text(c, strings.Join(where, " · ")).FontSize(11.5).TextColor(k.dim).Font("monospace").SingleLine().Ellipsis("…")
+					ui.Text(c, strings.Join(where, " · ")).FontSize(ts(11.5)).TextColor(k.dim).Font("monospace").SingleLine().Ellipsis("…")
 				}
 			})
 		})
 		if m.Why != "" && !m.Usable() {
-			ui.Text(c, m.Why).FontSize(12).TextColor(map[bool]ui.Color{true: k.blocked, false: k.muted}[bad]).LineHeight(1.35)
+			ui.Text(c, m.Why).FontSize(ts(12)).TextColor(map[bool]ui.Color{true: k.blocked, false: k.muted}[bad]).LineHeight(1.35)
 		}
 		switch {
 		case a.mach.renaming == name:
@@ -89,8 +89,8 @@ func (a *App) machineCard(c *ui.Context, k *colors, m core.Machine) {
 		case a.mach.removing == name:
 			ui.Row(c).Padding(10, 12).Gap(10).Radius(8).Background(k.background).Border(1, k.blocked.Alpha(0.5)).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-					ui.Text(c, "Remove "+name+"?").FontSize(13).FontWeight(600).TextColor(k.foreground)
-					ui.Text(c, "Its terminals keep running there; its spaces leave the sidebar.").FontSize(12).TextColor(k.muted)
+					ui.Text(c, "Remove "+name+"?").FontSize(ts(13)).FontWeight(600).TextColor(k.foreground)
+					ui.Text(c, "Its terminals keep running there; its spaces leave the sidebar.").FontSize(ts(12)).TextColor(k.muted)
 				})
 				if ui.Button(c, "Cancel").Clicked() {
 					a.mach.removing = ""
@@ -119,19 +119,19 @@ func (a *App) machineCard(c *ui.Context, k *colors, m core.Machine) {
 					a.mach.removing, a.mach.renaming = name, ""
 				}
 				if busy {
-					ui.Text(c, map[string]string{"update": "Updating…", "rename": "Renaming…", "rm": "Removing…"}[op.busy]).FontSize(12).TextColor(k.muted)
+					ui.Text(c, map[string]string{"update": "Updating…", "rename": "Renaming…", "rm": "Removing…"}[op.busy]).FontSize(ts(12)).TextColor(k.muted)
 				}
 			})
 		}
 		if op != nil && !busy && op.msg != "" {
-			ui.Text(c, op.msg).FontSize(12).TextColor(map[bool]ui.Color{true: k.done, false: k.blocked}[op.ok]).LineHeight(1.35)
+			ui.Text(c, op.msg).FontSize(ts(12)).TextColor(map[bool]ui.Color{true: k.done, false: k.blocked}[op.ok]).LineHeight(1.35)
 		}
 	})
 }
 
 func (a *App) renameMachineRow(c *ui.Context, k *colors, name string) {
 	ui.Column(c).Gap(6).Children(func() {
-		ui.Text(c, "New name (addresses with the old name stop working)").FontSize(12).TextColor(k.dim)
+		ui.Text(c, "New name (addresses with the old name stop working)").FontSize(ts(12)).TextColor(k.dim)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			in := ui.TextInput(c, &a.mach.newName).Grow(1).Label("New name of " + name).AutoFocus()
 			to := strings.TrimSpace(a.mach.newName)
@@ -169,7 +169,7 @@ func (a *App) addMachineForm(c *ui.Context, k *colors) {
 			}
 		}
 		if len(hosts) > 0 {
-			ui.Text(c, "From ~/.ssh/config").FontSize(11.5).FontWeight(600).TextColor(k.dim)
+			ui.Text(c, "From ~/.ssh/config").FontSize(ts(11.5)).FontWeight(600).TextColor(k.dim)
 			ui.Row(c).Gap(6).Wrap().Children(func() {
 				for _, h := range hosts {
 					adding := a.mach.ops[h] != nil && a.mach.ops[h].busy != ""
@@ -188,7 +188,7 @@ func (a *App) addMachineForm(c *ui.Context, k *colors) {
 			if op.busy != "" {
 				msg, col = fmt.Sprintf("Adding %s…", target), k.muted
 			}
-			ui.Text(c.Key("addop:"+target), msg).FontSize(12).TextColor(col).LineHeight(1.35)
+			ui.Text(c.Key("addop:"+target), msg).FontSize(ts(12)).TextColor(col).LineHeight(1.35)
 		}
 	})
 }

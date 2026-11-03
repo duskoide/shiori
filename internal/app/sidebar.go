@@ -28,7 +28,7 @@ func (a *App) sidebar(c *ui.Context, k *colors) {
 func (a *App) brand(c *ui.Context, k *colors) {
 	ui.Row(c).Height(brandHeight).Padding(0, 8, 0, 14).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
 		ui.Icon(c, glyph("logo")).Size(20, 20).TextColor(k.accent)
-		ui.Text(c, "Shiori").FontSize(14).FontWeight(600).TextColor(k.foreground)
+		ui.Text(c, "Shiori").FontSize(ts(14)).FontWeight(600).TextColor(k.foreground)
 		ui.Spacer(c)
 		if iconButton(c, k, "search", "Search", 28, 15).Tooltip(withKeys("Search", a.keysFor("mod.open:picker"))).Clicked() {
 			a.post(func() { a.doAction("mod.open", "picker") })
@@ -42,7 +42,7 @@ func (a *App) brand(c *ui.Context, k *colors) {
 // sectionHeader is the title of a sidebar list, with a button.
 func sectionHeader(c *ui.Context, k *colors, title string, button func()) {
 	ui.Row(c).Height(30).Padding(0, 8, 0, 14).AlignItems(ui.Center).Shrink(0).Children(func() {
-		ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(k.muted)
+		ui.Text(c, title).FontSize(ts(11.5)).FontWeight(600).TextColor(k.muted)
 		ui.Spacer(c)
 		if button != nil {
 			button()
@@ -126,7 +126,7 @@ func (a *App) machineHeader(c *ui.Context, k *colors, name string) {
 	row.Children(func() {
 		ui.Box(c).Size(6, 6).Radius(3).Background(dot).Shrink(0)
 		ui.Icon(c, glyph(icon)).Size(12, 12).TextColor(k.dim).Shrink(0)
-		ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(k.muted).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Text(c, title).FontSize(ts(11)).FontWeight(600).TextColor(k.muted).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		ui.Spacer(c)
 		plus := iconButton(c, k, "plus", "New space on "+title, 20, 12)
 		if err := a.machineReady(name); err != nil {
@@ -189,13 +189,13 @@ func (a *App) spaceRow(c *ui.Context, k *colors, i int, s *layout.Space) {
 	row.Children(func() {
 		avatar := k.ansi[spaceColors[i%len(spaceColors)]]
 		ui.Box(c).Size(18, 18).Radius(5).Background(avatar).Center().Shrink(0).Children(func() {
-			ui.Text(c, initial(label)).FontSize(11).FontWeight(700).TextColor(k.solidForeground)
+			ui.Text(c, initial(label)).FontSize(ts(11)).FontWeight(700).TextColor(k.solidForeground)
 		})
-		ui.Text(c, label).FontSize(12.8).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Text(c, label).FontSize(ts(12.8)).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		ui.Spacer(c)
 		statusMark(c, k, a.spaceWord(s), false)
 		if i < 9 {
-			ui.Text(c, fmt.Sprint(i+1)).FontSize(11).TextColor(k.dim)
+			ui.Text(c, fmt.Sprint(i+1)).FontSize(ts(11)).TextColor(k.dim)
 		}
 	})
 	if row.Clicked() {
@@ -226,7 +226,7 @@ func (a *App) agentsList(c *ui.Context, k *colors) {
 	sectionHeader(c, k, "Agents", nil)
 	if len(list) == 0 {
 		ui.Text(c, "No agent status yet. Agents show up here when they report their status.").
-			FontSize(12).TextColor(k.dim).Padding(4, 14).LineHeight(1.35)
+			FontSize(ts(12)).TextColor(k.dim).Padding(4, 14).LineHeight(1.35)
 		return
 	}
 	ui.Scroll(c).Grow(1).MinHeight(0).Padding(0, 6, 6, 6).Gap(1).Children(func() {
@@ -235,7 +235,7 @@ func (a *App) agentsList(c *ui.Context, k *colors) {
 			name := sectionOf(e)
 			if name != section {
 				section = name
-				ui.Text(c.Key("section:"+name), name).FontSize(11).FontWeight(600).TextColor(k.dim).Padding(8, 8, 3, 8)
+				ui.Text(c.Key("section:"+name), name).FontSize(ts(11)).FontWeight(600).TextColor(k.dim).Padding(8, 8, 3, 8)
 			}
 			a.agentRow(c, k, i, e)
 		}
@@ -291,7 +291,7 @@ func (a *App) agentRow(c *ui.Context, k *colors, i int, e agentEntry) {
 	hovered := row.Hovered()
 	row.Children(func() {
 		programTile(c, k, e.prog, 16)
-		ui.Text(c, label).FontSize(12.8).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Text(c, label).FontSize(ts(12.8)).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 		ui.Spacer(c)
 		statusMark(c, k, e.word, true)
 		if hovered {
@@ -299,7 +299,7 @@ func (a *App) agentRow(c *ui.Context, k *colors, i int, e agentEntry) {
 				a.post(func() { a.do("terminal.pin", args{"terminal": addr, "pinned": !pinned}) })
 			}
 		} else if e.rec.StatusMs > 0 {
-			ui.Text(c, since(time.UnixMilli(e.rec.StatusMs))).FontSize(11).TextColor(k.dim)
+			ui.Text(c, since(time.UnixMilli(e.rec.StatusMs))).FontSize(ts(11)).TextColor(k.dim)
 		}
 	})
 	if row.Clicked() {
@@ -339,7 +339,7 @@ func footerRow(c *ui.Context, k *colors, icon, label string) ui.Element {
 	}
 	row.Children(func() {
 		ui.Icon(c, glyph(icon)).Size(14, 14).TextColor(k.muted)
-		ui.Text(c, label).FontSize(12.8).TextColor(k.foreground)
+		ui.Text(c, label).FontSize(ts(12.8)).TextColor(k.foreground)
 	})
 	return row
 }
@@ -353,7 +353,7 @@ func statusMark(c *ui.Context, k *colors, w agent.Word, pill bool) {
 	case agent.Blocked:
 		if pill {
 			ui.Box(c).Padding(1, 7).Radius(9).Background(k.blocked.Alpha(0.15)).Children(func() {
-				ui.Text(c, "Needs you").FontSize(11).FontWeight(600).TextColor(k.blocked)
+				ui.Text(c, "Needs you").FontSize(ts(11)).FontWeight(600).TextColor(k.blocked)
 			})
 		} else {
 			ui.Box(c).Size(6, 6).Radius(3).Background(k.blocked).Tooltip("Needs you")

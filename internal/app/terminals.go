@@ -188,7 +188,8 @@ func (a *App) termFont() terminal.Font {
 	if family == "" {
 		family = defaultFontFamily
 	}
-	return terminal.Font{Family: family, Size: a.cfg.fontSize()}
+	// The window's zoom would make it larger too: its size is its own.
+	return terminal.Font{Family: family, Size: a.cfg.fontSize() / a.cfg.uiScale()}
 }
 
 // terminalKey takes the keys of the "terminal" section of keys.json that

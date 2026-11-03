@@ -192,6 +192,8 @@ selects the herdr-core session.
 | --- | --- | --- | --- |
 | `settings.json` | `theme` | `graphite`, `ink`, `moss`, `paper` or `atom-one-dark` | Appearance |
 | | `ui_font` | the font of the window's own text (lists, tabs, menus); none is the system's | Appearance |
+| | `ui_font_size` | the size of the window's own text, 10 to 16 (default 12) | Appearance |
+| | `ui_scale` | zooms the whole window, 0.75 to 2 (`1.25` for 125%); the terminals' text keeps its own size | Appearance |
 | | `font` | the terminals' font family, or a comma-separated list | Terminal |
 | | `font_size` | the terminals' text size, 6 to 40 (default 13) | Terminal |
 | | `copy_on_select` | `false` stops what the mouse selects in a terminal from going to the clipboard | Terminal |

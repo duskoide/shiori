@@ -167,12 +167,12 @@ func (a *App) paneCard(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node, 
 		body.Children(func() {
 			if p.Content == nil || p.Content.Terminal == "" {
 				ui.Text(c, "This pane shows a panel of herdr-app ("+a.paneName(p)+"), which this app does not draw.").
-					FontSize(12).TextColor(k.dim).Padding(12)
+					FontSize(ts(12)).TextColor(k.dim).Padding(12)
 				return
 			}
 			if a.isLost(p.ID) {
 				ui.Text(c, "herdr-core stopped, and this terminal with it. Starting a fresh shell in its folder…").
-					FontSize(12).TextColor(k.dim).Padding(12)
+					FontSize(ts(12)).TextColor(k.dim).Padding(12)
 				return
 			}
 			pt := a.termFor(c, p.Content.Terminal)
@@ -181,7 +181,7 @@ func (a *App) paneCard(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node, 
 				if a.client == nil {
 					msg = "Waiting for herdr-core… The terminal keeps running there."
 				}
-				ui.Text(c, msg).FontSize(12).TextColor(k.dim).Padding(12)
+				ui.Text(c, msg).FontSize(ts(12)).TextColor(k.dim).Padding(12)
 				return
 			}
 			tv := terminal.View(c, pt.term).Fill()
@@ -234,9 +234,9 @@ func (a *App) paneHeader(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node
 			programTile(c, k, programOf(rec), 15)
 		}
 		ui.Row(c).Grow(1).MinWidth(0).Gap(6).AlignItems(ui.Center).ClipX().Children(func() {
-			ui.Text(c, a.paneName(p)).FontSize(12.5).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").Shrink(0).MaxWidthPercent(70)
+			ui.Text(c, a.paneName(p)).FontSize(ts(12.5)).FontWeight(600).TextColor(k.foreground).SingleLine().Ellipsis("…").Shrink(0).MaxWidthPercent(70)
 			if cwd := a.cwdOf(p); cwd != "" {
-				ui.Text(c, pathOn(layout.MachineOf(rec.Address), cwd)).FontSize(12).TextColor(k.dim).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
+				ui.Text(c, pathOn(layout.MachineOf(rec.Address), cwd)).FontSize(ts(12)).TextColor(k.dim).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 			}
 			if ok {
 				statusMark(c, k, a.word(rec), true)
@@ -250,7 +250,7 @@ func (a *App) paneHeader(c *ui.Context, k *colors, t *layout.Tab, p *layout.Node
 						pill.Background(k.accent.Alpha(0.24))
 					}
 					pill.Children(func() {
-						ui.Textf(c, "Zoomed · 1 of %d panes", n).FontSize(11).FontWeight(600).TextColor(k.accent).SingleLine()
+						ui.Textf(c, "Zoomed · 1 of %d panes", n).FontSize(ts(11)).FontWeight(600).TextColor(k.accent).SingleLine()
 					})
 					if pill.Clicked() {
 						a.post(func() { a.do("pane.zoom", args{"pane": paneID}) })

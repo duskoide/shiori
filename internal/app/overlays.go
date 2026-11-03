@@ -125,14 +125,14 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 			Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4)).Clip()
 		panel.Children(func() {
 			if pick != nil && pick.title != "" {
-				ui.Text(c, pick.title).FontSize(12).FontWeight(600).TextColor(k.muted).Padding(10, 14, 0, 14)
+				ui.Text(c, pick.title).FontSize(ts(12)).FontWeight(600).TextColor(k.muted).Padding(10, 14, 0, 14)
 			}
 			ui.Row(c).Padding(10, 14).BorderWidth(0, 0, 1, 0).BorderColor(k.border).Children(func() {
 				label := "Search commands"
 				if pick != nil {
 					label = "Filter " + pick.title
 				}
-				in := ui.TextInputBase(c, &a.palette.query).Grow(1).FontSize(14).TextColor(k.foreground).
+				in := ui.TextInputBase(c, &a.palette.query).Grow(1).FontSize(ts(14)).TextColor(k.foreground).
 					Placeholder(placeholder).Label(label).AutoFocus()
 				if in.Changed() {
 					a.palette.sel, a.palette.reveal = 0, true
@@ -167,7 +167,7 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 			})
 			ui.Scroll(c).MaxHeight(420).Padding(6).Children(func() {
 				if len(items) == 0 {
-					ui.Text(c, "Nothing matches").FontSize(12.5).TextColor(k.dim).Padding(10)
+					ui.Text(c, "Nothing matches").FontSize(ts(12.5)).TextColor(k.dim).Padding(10)
 				}
 				for i, it := range items {
 					row := ui.Row(c.Key(i)).Height(32).Padding(0, 10).Gap(10).Radius(7).AlignItems(ui.Center).Cursor(ui.CursorPointer)
@@ -183,14 +183,14 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 						closeAndRun(it)
 					}
 					row.Children(func() {
-						ui.Text(c, it.title).FontSize(13).TextColor(k.foreground).SingleLine()
+						ui.Text(c, it.title).FontSize(ts(13)).TextColor(k.foreground).SingleLine()
 						if it.detail != "" {
-							ui.Text(c, it.detail).FontSize(11.5).TextColor(k.dim).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+							ui.Text(c, it.detail).FontSize(ts(11.5)).TextColor(k.dim).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 						}
 						ui.Spacer(c)
 						if it.keys != "" {
 							ui.Box(c).Padding(2, 6).Radius(5).Background(k.raised).Children(func() {
-								ui.Text(c, it.keys).FontSize(11).TextColor(k.muted)
+								ui.Text(c, it.keys).FontSize(ts(11)).TextColor(k.muted)
 							})
 						}
 					})
@@ -239,7 +239,7 @@ func (a *App) promptView(c *ui.Context, k *colors) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35)).Justify(ui.Start).Padding(120, 0, 0, 0)
 		panel.Width(420).Padding(16).Gap(12).Radius(12).Background(k.popover).Border(1, k.border).Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4))
 		panel.Children(func() {
-			ui.Text(c, p.title).FontSize(14).FontWeight(600).TextColor(k.foreground)
+			ui.Text(c, p.title).FontSize(ts(14)).FontWeight(600).TextColor(k.foreground)
 			submit := func() {
 				p.open, p.answered = false, true
 				value, done := strings.TrimSpace(p.value), p.done
@@ -250,7 +250,7 @@ func (a *App) promptView(c *ui.Context, k *colors) {
 				submit()
 			}
 			if p.hint != "" {
-				ui.Text(c, p.hint).FontSize(11.5).TextColor(k.dim).LineHeight(1.35)
+				ui.Text(c, p.hint).FontSize(ts(11.5)).TextColor(k.dim).LineHeight(1.35)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Tooltip("Esc").Clicked() {
@@ -292,9 +292,9 @@ func (a *App) confirmView(c *ui.Context, k *colors) {
 		backdrop.Background(ui.RGBA(0, 0, 0, 0.35)).Justify(ui.Start).Padding(120, 0, 0, 0)
 		panel.Width(400).Padding(16).Gap(12).Radius(12).Background(k.popover).Border(1, k.border).Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4))
 		panel.Children(func() {
-			ui.Text(c, p.title).FontSize(14).FontWeight(600).TextColor(k.foreground)
+			ui.Text(c, p.title).FontSize(ts(14)).FontWeight(600).TextColor(k.foreground)
 			if p.detail != "" {
-				ui.Text(c, p.detail).FontSize(12.5).TextColor(k.muted).LineHeight(1.35)
+				ui.Text(c, p.detail).FontSize(ts(12.5)).TextColor(k.muted).LineHeight(1.35)
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				if ui.Button(c, "Cancel").Clicked() {

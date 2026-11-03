@@ -418,3 +418,55 @@ func TestDevToolsOnlyWhenAsked(t *testing.T) {
 		t.Fatal("SHIORI_DEVTOOLS=1 does not turn it on")
 	}
 }
+
+func TestSettingsAppTextSizeAndScale(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	a.openSettings("ui_scale")
+	settle(tt)
+	if a.set.section != "appearance" {
+		t.Fatalf("section %q", a.set.section)
+	}
+	tt.Scroll(700, 400, 0, 2000) // to the page's foot
+	settle(tt)
+	mustClick(t, tt, "Larger: App text size")
+	settle(tt)
+	if a.cfg.uiFontSize() != 13 || !tt.HasText("13 pt") || textScale != float32(13)/12 {
+		t.Fatalf("text size %v, scale %v", a.cfg.uiFontSize(), textScale)
+	}
+	mustClick(t, tt, "Reset to 12 pt")
+	settle(tt)
+	if a.cfg.UIFontSize != 0 || textScale != 1 {
+		t.Fatalf("text size %v after reset", a.cfg.UIFontSize)
+	}
+
+	mustClick(t, tt, "Larger: Interface scale")
+	mustClick(t, tt, "Larger: Interface scale")
+	mustClick(t, tt, "Larger: Interface scale")
+	settle(tt)
+	if a.cfg.UIScale != 1.3 || !tt.HasText("130%") {
+		t.Fatalf("scale %v", a.cfg.UIScale)
+	}
+	// The terminals' text keeps its size: the zoom is taken out of it.
+	if got := a.termFont().Size * a.cfg.uiScale(); got < 12.99 || got > 13.01 {
+		t.Fatalf("terminal text %v at the window's scale", got)
+	}
+	a.setUIScale(5)
+	if a.cfg.uiScale() != maxUIScale {
+		t.Fatalf("scale %v past the range", a.cfg.uiScale())
+	}
+	settle(tt) // laid out at the new zoom before a click
+	mustClick(t, tt, "Close settings")
+	b, err := os.ReadFile(filepath.Join(a.home, "settings.json"))
+	if err != nil || !strings.Contains(string(b), `"ui_scale": 2`) || strings.Contains(string(b), "ui_font_size") {
+		t.Fatalf("settings.json %s, %v", b, err)
+	}
+	a.openSettings("appearance")
+	settle(tt)
+	tt.Scroll(700, 400, 0, 2000)
+	settle(tt)
+	mustClick(t, tt, "Reset to 100%")
+	if a.cfg.UIScale != 0 {
+		t.Fatalf("scale %v after reset", a.cfg.UIScale)
+	}
+}

@@ -193,13 +193,13 @@ func (a *App) modeChip(c *ui.Context, k *colors) {
 	if a.prefixPending() {
 		ui.Row(c).Gap(6).Padding(1, 8).Radius(5).Background(k.accent).AlignItems(ui.Center).Shrink(0).
 			Role(ui.RoleStatus).Label("Command mode").Children(func() {
-			ui.Text(c, "COMMAND").FontSize(11).FontWeight(700).TextColor(k.chrome).SingleLine()
+			ui.Text(c, "COMMAND").FontSize(ts(11)).FontWeight(700).TextColor(k.chrome).SingleLine()
 		})
 		hint := "Press a key · Esc to go back"
 		if l := a.keymap.PrefixKeysFor("app.help"); len(l) > 0 {
 			hint = "Press a key · " + typedLabel(strings.TrimPrefix(l[0], leader+" ")) + " lists them · Esc to go back"
 		}
-		ui.Text(c, hint).FontSize(11.5).TextColor(k.muted).SingleLine().Shrink(1).MinWidth(0).Ellipsis("…")
+		ui.Text(c, hint).FontSize(ts(11.5)).TextColor(k.muted).SingleLine().Shrink(1).MinWidth(0).Ellipsis("…")
 		return
 	}
 	tip := "Normal mode: keys go to the terminal"
@@ -207,7 +207,7 @@ func (a *App) modeChip(c *ui.Context, k *colors) {
 		tip += "; " + leader + " enters command mode"
 	}
 	ui.Box(c).Padding(1, 8).Radius(5).Border(1, k.border).Shrink(0).Role(ui.RoleStatus).Label("Normal mode").Tooltip(tip).Children(func() {
-		ui.Text(c, "NORMAL").FontSize(11).FontWeight(700).TextColor(k.dim).SingleLine()
+		ui.Text(c, "NORMAL").FontSize(ts(11)).FontWeight(700).TextColor(k.dim).SingleLine()
 	})
 }
 

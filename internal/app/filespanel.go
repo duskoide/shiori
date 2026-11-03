@@ -181,7 +181,7 @@ func (a *App) fileRowView(c *ui.Context, k *colors, r fileRow) {
 			ui.Box(c).Size(12, 12).Shrink(0)
 			ui.Icon(c, glyph("file")).Size(14, 14).TextColor(k.muted)
 		}
-		ui.Text(c, r.entry.name).FontSize(12.5).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+		ui.Text(c, r.entry.name).FontSize(ts(12.5)).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 	})
 	if row.Clicked() {
 		p, dir := r.path, r.entry.dir

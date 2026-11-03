@@ -97,7 +97,7 @@ func (a *App) snapshot() *stateSnap {
 	if themeName == "" {
 		themeName = "graphite"
 	}
-	s.settings = map[string]any{"theme": themeName, "font": a.cfg.Font, "font_size": a.cfg.fontSize(), "ui_font": a.cfg.UIFont, "copy_on_select": a.cfg.copiesOnSelect(), "sidebar": a.cfg.sidebarShown(), "changes": a.cfg.changesShown()}
+	s.settings = map[string]any{"theme": themeName, "font": a.cfg.Font, "font_size": a.cfg.fontSize(), "ui_font": a.cfg.UIFont, "ui_font_size": a.cfg.uiFontSize(), "ui_scale": a.cfg.uiScale(), "copy_on_select": a.cfg.copiesOnSelect(), "sidebar": a.cfg.sidebarShown(), "changes": a.cfg.changesShown()}
 	return s
 }
 

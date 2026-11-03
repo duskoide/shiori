@@ -16,8 +16,11 @@ func (a *App) view(c *ui.Context) {
 	}
 	a.runPosted()
 	k := a.k
+	textScale = a.cfg.uiFontSize() / defaultUIFontSize
+	c.SetZoom(a.cfg.uiScale())
 	th := k.uiTheme(c.Theme())
 	th.Font = a.cfg.UIFont // "" is the system's
+	th.FontSize = ts(th.FontSize)
 	c.SetTheme(th)
 	c.Root().Background(k.canvas)
 	a.dragging = false
@@ -95,9 +98,9 @@ func (a *App) workArea(c *ui.Context, k *colors) {
 func (a *App) emptyState(c *ui.Context, k *colors, title, detail string) {
 	ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 		ui.Icon(c, glyph("logo")).Size(40, 40).TextColor(k.dim)
-		ui.Text(c, title).FontSize(15).FontWeight(600).TextColor(k.foreground)
+		ui.Text(c, title).FontSize(ts(15)).FontWeight(600).TextColor(k.foreground)
 		if detail != "" {
-			ui.Text(c, detail).FontSize(12.5).TextColor(k.muted).MaxWidth(520).TextAlign(ui.Center).LineHeight(1.4)
+			ui.Text(c, detail).FontSize(ts(12.5)).TextColor(k.muted).MaxWidth(520).TextAlign(ui.Center).LineHeight(1.4)
 		}
 		if a.connected {
 			b := ui.Row(c).Padding(6, 12).Radius(7).Background(k.raised).Border(1, k.border).Cursor(ui.CursorPointer).Role(ui.RoleButton).Label("New space")
@@ -105,9 +108,9 @@ func (a *App) emptyState(c *ui.Context, k *colors, title, detail string) {
 				b.Background(k.hover)
 			}
 			b.Children(func() {
-				ui.Text(c, "New space").FontSize(12.8).TextColor(k.foreground)
+				ui.Text(c, "New space").FontSize(ts(12.8)).TextColor(k.foreground)
 				if keys := a.keysFor("space.new"); keys != "" {
-					ui.Text(c, "  "+keys).FontSize(12).TextColor(k.dim)
+					ui.Text(c, "  "+keys).FontSize(ts(12)).TextColor(k.dim)
 				}
 			})
 			if b.Clicked() {
@@ -151,7 +154,7 @@ func (a *App) toastView(c *ui.Context, k *colors) {
 					} else if t.icon != "" {
 						ui.Icon(c, glyph(t.icon)).Size(14, 14).TextColor(k.done).Shrink(0)
 					}
-					ui.Text(c, t.text).FontSize(12.5).TextColor(k.foreground)
+					ui.Text(c, t.text).FontSize(ts(12.5)).TextColor(k.foreground)
 				})
 			}
 		})

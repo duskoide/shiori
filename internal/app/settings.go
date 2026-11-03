@@ -92,7 +92,7 @@ func settingsSectionOf(name string) (string, bool) {
 		return "appearance", true
 	case "font", "fonts", "text", "terminal font", "copy", "selection", "copy on select", "copy_on_select":
 		return "terminal", true
-	case "app font", "ui font", "ui_font":
+	case "app font", "ui font", "ui_font", "app text size", "ui_font_size", "scale", "ui scale", "ui_scale", "zoom", "interface scale":
 		return "appearance", true
 	case "sidebar":
 		return "layout", true
@@ -159,6 +159,36 @@ func (a *App) setFontSize(size float32) {
 		return
 	}
 	a.cfg.FontSize = size
+	for _, pt := range a.terms {
+		pt.term.SetFont(a.termFont())
+	}
+	a.saveSettingsSoon()
+}
+
+// setUIFontSize sets the size of the window's own body text, the
+// default's being kept as none.
+func (a *App) setUIFontSize(size float32) {
+	size = min(max(float32(math.Round(float64(size))), minUIFontSize), maxUIFontSize)
+	if size == defaultUIFontSize {
+		size = 0
+	}
+	if size == a.cfg.UIFontSize {
+		return
+	}
+	a.cfg.UIFontSize = size
+	a.saveSettingsSoon()
+}
+
+// setUIScale sets the window's zoom, in steps of 5%, 1 being kept as none.
+func (a *App) setUIScale(scale float32) {
+	scale = min(max(float32(math.Round(float64(scale)*20)/20), minUIScale), maxUIScale)
+	if scale == 1 {
+		scale = 0
+	}
+	if scale == a.cfg.UIScale {
+		return
+	}
+	a.cfg.UIScale = scale
 	for _, pt := range a.terms {
 		pt.term.SetFont(a.termFont())
 	}
@@ -521,7 +551,7 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 					ui.Row(c).Height(52).Padding(0, 12, 0, 24).AlignItems(ui.Center).Shrink(0).BorderWidth(0, 0, 1, 0).BorderColor(k.border).Children(func() {
 						for _, s := range settingsSections {
 							if s.id == a.set.section {
-								ui.Text(c, s.title).FontSize(15).FontWeight(600).TextColor(k.foreground)
+								ui.Text(c, s.title).FontSize(ts(15)).FontWeight(600).TextColor(k.foreground)
 							}
 						}
 						ui.Spacer(c)
@@ -562,7 +592,7 @@ func (a *App) settingsView(c *ui.Context, k *colors) {
 
 func (a *App) settingsNav(c *ui.Context, k *colors) {
 	ui.Column(c).Width(196).Shrink(0).Padding(14, 10).Gap(2).Background(k.chrome).BorderWidth(0, 1, 0, 0).BorderColor(k.border).Role(ui.RoleTabList).Children(func() {
-		ui.Text(c, "Settings").FontSize(12).FontWeight(600).TextColor(k.muted).Padding(4, 10, 10, 10)
+		ui.Text(c, "Settings").FontSize(ts(12)).FontWeight(600).TextColor(k.muted).Padding(4, 10, 10, 10)
 		for _, s := range settingsSections {
 			active := s.id == a.set.section
 			row := ui.Row(c.Key(s.id)).Height(32).Padding(0, 10).Gap(10).Radius(8).AlignItems(ui.Center).
@@ -576,7 +606,7 @@ func (a *App) settingsNav(c *ui.Context, k *colors) {
 			}
 			row.Children(func() {
 				ui.Icon(c, glyph(s.icon)).Size(15, 15).TextColor(col)
-				ui.Text(c, s.title).FontSize(13).TextColor(k.foreground)
+				ui.Text(c, s.title).FontSize(ts(13)).TextColor(k.foreground)
 				trouble := map[string]string{"mods": a.modTrouble(), "machines": a.machineTrouble()}[s.id]
 				if s.id == "keyboard" && a.keysErr != "" {
 					trouble = "keys.json has problems"
@@ -592,7 +622,7 @@ func (a *App) settingsNav(c *ui.Context, k *colors) {
 			}
 		}
 		ui.Spacer(c)
-		ui.Text(c, "Saved as you change it").FontSize(11).TextColor(k.dim).Padding(0, 10)
+		ui.Text(c, "Saved as you change it").FontSize(ts(11)).TextColor(k.dim).Padding(0, 10)
 	})
 }
 
@@ -600,9 +630,9 @@ func (a *App) settingsNav(c *ui.Context, k *colors) {
 func settingsGroup(c *ui.Context, k *colors, title, detail string, fn func()) {
 	ui.Column(c).Gap(8).Shrink(0).Children(func() {
 		ui.Column(c).Gap(3).Children(func() {
-			ui.Text(c, title).FontSize(13).FontWeight(600).TextColor(k.foreground)
+			ui.Text(c, title).FontSize(ts(13)).FontWeight(600).TextColor(k.foreground)
 			if detail != "" {
-				ui.Text(c, detail).FontSize(12).TextColor(k.muted).LineHeight(1.35)
+				ui.Text(c, detail).FontSize(ts(12)).TextColor(k.muted).LineHeight(1.35)
 			}
 		})
 		fn()
@@ -614,9 +644,9 @@ func settingRow(c *ui.Context, k *colors, title, detail string, control func()) 
 	row := ui.Row(c).Padding(12, 14).Gap(16).Radius(10).Background(k.raised).Border(1, k.border).AlignItems(ui.Center).Shrink(0)
 	return row.Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(3).Children(func() {
-			ui.Text(c, title).FontSize(13).TextColor(k.foreground)
+			ui.Text(c, title).FontSize(ts(13)).TextColor(k.foreground)
 			if detail != "" {
-				ui.Text(c, detail).FontSize(12).TextColor(k.muted).LineHeight(1.35)
+				ui.Text(c, detail).FontSize(ts(12)).TextColor(k.muted).LineHeight(1.35)
 			}
 		})
 		control()
@@ -625,7 +655,7 @@ func settingRow(c *ui.Context, k *colors, title, detail string, control func()) 
 
 // fileNote names the file and field a setting is kept in.
 func fileNote(c *ui.Context, k *colors, text string) {
-	ui.Text(c, text).FontSize(11.5).TextColor(k.dim).Font("monospace")
+	ui.Text(c, text).FontSize(ts(11.5)).TextColor(k.dim).Font("monospace")
 }
 
 // --- Appearance -------------------------------------------------------
@@ -638,7 +668,7 @@ func (a *App) appearancePage(c *ui.Context, k *colors) {
 	settingsGroup(c, k, "Theme", "The colors of the window and its terminals. Programs' colors follow the theme's palette.", func() {
 		if a.cfg.Theme != "" && a.cfg.Theme != current {
 			ui.Text(c, fmt.Sprintf("settings.json names the theme %q, which this app does not have: graphite is in use.", a.cfg.Theme)).
-				FontSize(12).TextColor(k.blocked)
+				FontSize(ts(12)).TextColor(k.blocked)
 		}
 		ui.Grid(c).Columns(3).Gap(12).Children(func() {
 			for _, name := range theme.PresetNames {
@@ -654,6 +684,56 @@ func (a *App) appearancePage(c *ui.Context, k *colors) {
 			families: proportionalFonts(), set: a.setUIFont,
 		})
 		fileNote(c, k, `settings.json  "ui_font"`)
+	})
+	settingsGroup(c, k, "App text size", "The size of the window's own text; the terminals' is on the Terminal page.", func() {
+		size := a.cfg.uiFontSize()
+		stepper(c, k, stepperSpec{
+			label: "App text size", value: size, min: minUIFontSize, max: maxUIFontSize, step: 1, def: defaultUIFontSize,
+			text: fmt.Sprintf("%g pt", size), isDefault: a.cfg.UIFontSize == 0,
+			reset: fmt.Sprintf("Reset to %d pt", defaultUIFontSize), set: a.setUIFontSize, post: a.post,
+		})
+		fileNote(c, k, `settings.json  "ui_font_size"`)
+	})
+	settingsGroup(c, k, "Interface scale", "Zooms the whole window: text, icons, spacing. The terminals' text keeps its own size.", func() {
+		scale := a.cfg.uiScale()
+		stepper(c, k, stepperSpec{
+			label: "Interface scale", value: scale, min: minUIScale, max: maxUIScale, step: 0.1, def: 1,
+			text: fmt.Sprintf("%.0f%%", scale*100), isDefault: a.cfg.UIScale == 0,
+			reset: "Reset to 100%", set: a.setUIScale, post: a.post,
+		})
+		fileNote(c, k, `settings.json  "ui_scale"`)
+	})
+}
+
+// stepperSpec is a setting of a size: its value, range and steps, how it
+// reads, and what sets it.
+type stepperSpec struct {
+	label, text, reset string
+	value, min, max    float32
+	step, def          float32
+	isDefault          bool
+	set                func(float32)
+	post               func(func())
+}
+
+// stepper is a size's row: smaller, a slider, larger, the value, and
+// reset.
+func stepper(c *ui.Context, k *colors, s stepperSpec) {
+	ui.Row(c).Padding(12, 14).Gap(12).Radius(10).Background(k.raised).Border(1, k.border).AlignItems(ui.Center).Children(func() {
+		if ui.Button(c, "−").Label("Smaller: " + s.label).Disabled(s.value <= s.min).Clicked() {
+			s.post(func() { s.set(s.value - s.step) })
+		}
+		v := float64(s.value)
+		if ui.Slider(c, &v, float64(s.min), float64(s.max)).Grow(1).Label(s.label); float32(v) != s.value {
+			s.set(float32(v))
+		}
+		if ui.Button(c, "+").Label("Larger: " + s.label).Disabled(s.value >= s.max).Clicked() {
+			s.post(func() { s.set(s.value + s.step) })
+		}
+		ui.Text(c, s.text).FontSize(ts(13)).TextColor(k.foreground).Width(ts(52)).TextAlign(ui.End)
+		if ui.Button(c, "Reset").Label(s.reset).Tooltip(s.reset).Disabled(s.isDefault).Clicked() {
+			s.post(func() { s.set(s.def) })
+		}
 	})
 }
 
@@ -695,7 +775,7 @@ func (a *App) themeCard(c *ui.Context, k *colors, name string, selected bool) {
 			})
 		})
 		ui.Row(c).Padding(8, 10).Gap(6).AlignItems(ui.Center).Background(k.raised).Children(func() {
-			ui.Text(c, name).FontSize(12.5).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+			ui.Text(c, name).FontSize(ts(12.5)).TextColor(k.foreground).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 			ui.Spacer(c)
 			if selected {
 				ui.Icon(c, glyph("check")).Size(14, 14).TextColor(k.accent)
@@ -794,7 +874,7 @@ func (a *App) fontField(c *ui.Context, k *colors, f fontField) {
 			} else if chip.Hovered() {
 				chip.Background(k.hover)
 			}
-			chip.Children(func() { ui.Text(c, name).FontSize(12.5).Font(name + ", " + f.generic).TextColor(k.foreground) })
+			chip.Children(func() { ui.Text(c, name).FontSize(ts(12.5)).Font(name + ", " + f.generic).TextColor(k.foreground) })
 			if chip.Clicked() {
 				a.post(func() { f.set(name) })
 			}
@@ -858,7 +938,7 @@ func (a *App) terminalPage(c *ui.Context, k *colors) {
 			if ui.Button(c, "+").Label("Larger text").Tooltip(withKeys("Larger text", a.keysFor("app.zoom_in"))).Disabled(size >= maxFontSize).Clicked() {
 				a.post(func() { a.setFontSize(size + 1) })
 			}
-			ui.Textf(c, "%g pt", size).FontSize(13).TextColor(k.foreground).Width(46).TextAlign(ui.End)
+			ui.Textf(c, "%g pt", size).FontSize(ts(13)).TextColor(k.foreground).Width(ts(46)).TextAlign(ui.End)
 			if ui.Button(c, "Reset").Tooltip(withKeys(fmt.Sprintf("Reset to %d", defaultFontSize), a.keysFor("app.zoom_reset"))).Disabled(a.cfg.FontSize == 0).Clicked() {
 				a.post(func() { a.setFontSize(defaultFontSize) })
 			}
@@ -925,7 +1005,7 @@ func (a *App) layoutPage(c *ui.Context, k *colors) {
 			a.post(func() { a.setSidebar(!shown) })
 		}
 		fileNote(c, k, `settings.json  "sidebar"`)
-		ui.Text(c, "Drag the sidebar's edge to resize it; double-click the edge for its first width.").FontSize(12).TextColor(k.muted)
+		ui.Text(c, "Drag the sidebar's edge to resize it; double-click the edge for its first width.").FontSize(ts(12)).TextColor(k.muted)
 	})
 	settingsGroup(c, k, "Changes", "", func() {
 		shown := a.cfg.changesShown()
@@ -970,9 +1050,9 @@ func (a *App) keyboardPage(c *ui.Context, k *colors) {
 		ui.Row(c).Padding(10, 12).Gap(10).Radius(10).Background(k.blocked.Alpha(0.12)).Border(1, k.blocked.Alpha(0.4)).Children(func() {
 			ui.Icon(c, glyph("alert")).Size(15, 15).TextColor(k.blocked)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-				ui.Text(c, "keys.json has problems; the bindings it could read are in use.").FontSize(12.5).FontWeight(600).TextColor(k.foreground)
-				ui.Text(c, a.keysErr).FontSize(11.5).TextColor(k.muted).Font("monospace").LineHeight(1.35)
-				ui.Text(c, "Changing a binding here rewrites the file with the readable bindings.").FontSize(11.5).TextColor(k.muted)
+				ui.Text(c, "keys.json has problems; the bindings it could read are in use.").FontSize(ts(12.5)).FontWeight(600).TextColor(k.foreground)
+				ui.Text(c, a.keysErr).FontSize(ts(11.5)).TextColor(k.muted).Font("monospace").LineHeight(1.35)
+				ui.Text(c, "Changing a binding here rewrites the file with the readable bindings.").FontSize(ts(11.5)).TextColor(k.muted)
 			})
 		})
 	}
@@ -987,8 +1067,8 @@ func (a *App) keyboardPage(c *ui.Context, k *colors) {
 		// Asked here: a dialog over the panel would not take the keys.
 		ui.Row(c).Padding(10, 12).Gap(10).Radius(10).Background(k.raised).Border(1, k.blocked.Alpha(0.5)).AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-				ui.Text(c, "Reset every key binding?").FontSize(13).FontWeight(600).TextColor(k.foreground)
-				ui.Text(c, "keys.json is removed and the default bindings apply.").FontSize(12).TextColor(k.muted)
+				ui.Text(c, "Reset every key binding?").FontSize(ts(13)).FontWeight(600).TextColor(k.foreground)
+				ui.Text(c, "keys.json is removed and the default bindings apply.").FontSize(ts(12)).TextColor(k.muted)
 			})
 			if ui.Button(c, "Cancel").Clicked() {
 				a.set.confirmReset = false
@@ -1001,7 +1081,7 @@ func (a *App) keyboardPage(c *ui.Context, k *colors) {
 	} else {
 		a.set.confirmReset = false
 	}
-	ui.Text(c, "Click + to add keys to an action, a key to change it, its × to remove it. Esc cancels.").FontSize(12).TextColor(k.muted)
+	ui.Text(c, "Click + to add keys to an action, a key to change it, its × to remove it. Esc cancels.").FontSize(ts(12)).TextColor(k.muted)
 
 	q := strings.ToLower(strings.TrimSpace(a.set.query))
 	a.bindingSection(c, k, "Prefix key", "The one key the window reads itself. It goes from normal mode to command mode, which the status bar shows; the next key runs its action below.", "global", q)
@@ -1031,7 +1111,7 @@ func (a *App) bindingSection(c *ui.Context, k *colors, title, detail, section, q
 			for i, r := range rows {
 				if r.group != group {
 					group = r.group
-					ui.Text(c.Key("group:"+group), group).FontSize(11).FontWeight(600).TextColor(k.dim).Padding(10, 14, 4, 14)
+					ui.Text(c.Key("group:"+group), group).FontSize(ts(11)).FontWeight(600).TextColor(k.dim).Padding(10, 14, 4, 14)
 				} else if i > 0 {
 					ui.Box(c.Key("sep:"+r.spec)).Height(1).Background(k.border.Alpha(0.6)).Margin(0, 14)
 				}
@@ -1053,14 +1133,14 @@ func (a *App) bindingRowView(c *ui.Context, k *colors, r bindingRow) {
 				if !r.runs {
 					col = k.muted
 				}
-				ui.Text(c, r.title).FontSize(13).TextColor(col).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
+				ui.Text(c, r.title).FontSize(ts(13)).TextColor(col).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
 				if !r.runs {
 					ui.Box(c).Padding(0, 6).Radius(8).Border(1, k.border).Shrink(0).Tooltip("This app does not run it; it stays for herdr-app, which reads the same file").Children(func() {
-						ui.Text(c, "herdr-app only").FontSize(10.5).TextColor(k.dim)
+						ui.Text(c, "herdr-app only").FontSize(ts(10.5)).TextColor(k.dim)
 					})
 				}
 			})
-			ui.Text(c, r.spec).FontSize(11).TextColor(k.dim).Font("monospace").SingleLine().Ellipsis("…")
+			ui.Text(c, r.spec).FontSize(ts(11)).TextColor(k.dim).Font("monospace").SingleLine().Ellipsis("…")
 		})
 		ui.Row(c).Gap(4).AlignItems(ui.Center).Wrap().Justify(ui.End).Shrink(1).MinWidth(0).Children(func() {
 			rec := a.set.rec
@@ -1075,7 +1155,7 @@ func (a *App) bindingRowView(c *ui.Context, k *colors, r bindingRow) {
 			if recording && rec.replace == nil {
 				a.recorder(c, k, r)
 			} else if len(r.chords) == 0 {
-				ui.Text(c, "No keys").FontSize(11.5).TextColor(k.dim)
+				ui.Text(c, "No keys").FontSize(ts(11.5)).TextColor(k.dim)
 			}
 		})
 		add := iconButton(c, k, "plus", "Add keys for "+r.title, 24, 13).Tooltip("Add keys")
@@ -1112,7 +1192,7 @@ func (a *App) chordChip(c *ui.Context, k *colors, r bindingRow, ch keys.Chord) {
 		chip.Border(1, k.accent)
 	}
 	chip.Children(func() {
-		ui.Text(c, ch.String()).FontSize(11.5).TextColor(k.foreground).SingleLine()
+		ui.Text(c, ch.String()).FontSize(ts(11.5)).TextColor(k.foreground).SingleLine()
 		label := ""
 		if hovered {
 			label = "Remove " + ch.String()
@@ -1156,7 +1236,7 @@ func (a *App) recorder(c *ui.Context, k *colors, r bindingRow) {
 		rec.cancel = true
 	}
 	box.Children(func() {
-		ui.Text(c, "Press keys…").FontSize(11.5).TextColor(k.accent).SingleLine()
+		ui.Text(c, "Press keys…").FontSize(ts(11.5)).TextColor(k.accent).SingleLine()
 	})
 }
 
@@ -1196,13 +1276,13 @@ func (a *App) addBindingForm(c *ui.Context, k *colors) {
 		})
 		if spec := strings.TrimSpace(a.set.addAction); spec != "" {
 			if _, err := keys.ParseAction(spec); err != nil {
-				ui.Text(c, err.Error()).FontSize(11.5).TextColor(k.blocked)
+				ui.Text(c, err.Error()).FontSize(ts(11.5)).TextColor(k.blocked)
 			} else {
 				msg, col := a.actionTitle(a.set.addSection, spec), k.muted
 				if !a.actionRuns(a.set.addSection, spec) {
 					msg, col = msg+": this app does not run it here, herdr-app may", k.dim
 				}
-				ui.Text(c, msg).FontSize(11.5).TextColor(col)
+				ui.Text(c, msg).FontSize(ts(11.5)).TextColor(col)
 			}
 		}
 	})
@@ -1301,5 +1381,5 @@ func (a *App) prefixNote(c *ui.Context, k *colors) {
 		}
 		msg = "Prefix key: " + strings.Join(names, ", ") + ". Press it twice to type it in the terminal; hold its modifiers for the next key if you like (Ctrl+B, then Ctrl+C for C)."
 	}
-	ui.Text(c, msg).FontSize(12).TextColor(col)
+	ui.Text(c, msg).FontSize(ts(12)).TextColor(col)
 }

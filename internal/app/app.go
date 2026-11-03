@@ -156,7 +156,13 @@ type Settings struct {
 	Font  string `json:"font,omitempty"`
 	// UIFont is the font of the window's own text: menus, lists, labels.
 	// "" is the system's.
-	UIFont   string  `json:"ui_font,omitempty"`
+	UIFont string `json:"ui_font,omitempty"`
+	// UIFontSize is the size of the window's own body text, 10 to 16;
+	// its other text follows. 0 is the default, 12.
+	UIFontSize float32 `json:"ui_font_size,omitempty"`
+	// UIScale zooms the whole window, 0.75 to 2 (1.25 for 125%), all but
+	// the terminals' text, which keeps its own size. 0 is 1.
+	UIScale  float32 `json:"ui_scale,omitempty"`
 	FontSize float32 `json:"font_size,omitempty"`
 	// CopyOnSelect false stops a terminal's selection made with the mouse
 	// from going to the clipboard as it ends.
@@ -188,6 +194,30 @@ func (s Settings) fontSize() float32 {
 }
 
 func clampFontSize(v float32) float32 { return min(max(v, minFontSize), maxFontSize) }
+
+// The window's own text size and its scale: the defaults, and the ranges
+// they keep to.
+const (
+	defaultUIFontSize = 12
+	minUIFontSize     = 10
+	maxUIFontSize     = 16
+	minUIScale        = 0.75
+	maxUIScale        = 2
+)
+
+func (s Settings) uiFontSize() float32 {
+	if s.UIFontSize <= 0 {
+		return defaultUIFontSize
+	}
+	return min(max(s.UIFontSize, minUIFontSize), maxUIFontSize)
+}
+
+func (s Settings) uiScale() float32 {
+	if s.UIScale <= 0 {
+		return 1
+	}
+	return min(max(s.UIScale, minUIScale), maxUIScale)
+}
 
 func (s Settings) sidebarShown() bool { return s.Sidebar == nil || *s.Sidebar }
 

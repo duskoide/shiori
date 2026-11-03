@@ -23,6 +23,14 @@ const (
 	sidebarGrip    = 5 // the width the sidebar's edge can be caught by
 )
 
+// textScale is how much larger than designed the window's own text is:
+// the settings' text size over the default's. The view sets it each frame
+// (main thread only).
+var textScale float32 = 1
+
+// ts is a text size of the window's own as the settings make it.
+func ts(size float32) float32 { return size * textScale }
+
 // colors are the theme's tokens as the interface paints them.
 type colors struct {
 	dark                                         bool
