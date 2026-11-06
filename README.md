@@ -254,6 +254,11 @@ SHIORI_IT=1 SHIORI_SHOTS=/tmp/shots /tmp/shiori-app.test -test.run TestIntegrati
 Ctrl+Shift+C to pick an element); without it those keys are the
 terminals'.
 
+## Development
+
+Work goes to the `develop` branch. How to build, test and commit:
+[DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
