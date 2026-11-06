@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -34,9 +35,14 @@ const DefaultRepo = "duskoide/shiori"
 
 // Options say where to look and how.
 type Options struct {
-	API    string // GitHub's API, "" for https://api.github.com ($SHIORI_UPDATE_API)
-	Repo   string // owner/name, "" for DefaultRepo ($SHIORI_REPO)
-	Token  string // for a private repository ($GITHUB_TOKEN, $GH_TOKEN)
+	API   string // GitHub's API, "" for https://api.github.com ($SHIORI_UPDATE_API)
+	Repo  string // owner/name, "" for DefaultRepo ($SHIORI_REPO)
+	Token string // for a private repository ($GITHUB_TOKEN, $GH_TOKEN)
+	// UseGH asks the GitHub CLI for its login's token when Token is "" and
+	// API is GitHub's own, so a person logged in with gh needs no variable
+	// set. A token also lifts GitHub's limit for requests without one, 60
+	// an hour per address.
+	UseGH  bool
 	Client *http.Client
 }
 
@@ -46,8 +52,35 @@ func FromEnv() Options {
 	if tok == "" {
 		tok = os.Getenv("GH_TOKEN")
 	}
-	return Options{API: os.Getenv("SHIORI_UPDATE_API"), Repo: os.Getenv("SHIORI_REPO"), Token: tok}
+	return Options{API: os.Getenv("SHIORI_UPDATE_API"), Repo: os.Getenv("SHIORI_REPO"), Token: tok, UseGH: true}
 }
+
+// token is the token requests carry, "" for none. gh's token is for
+// github.com, so it goes to GitHub's own API alone.
+func (o Options) token() string {
+	if o.Token == "" && o.UseGH && o.API == "" {
+		return ghToken()
+	}
+	return o.Token
+}
+
+// HasToken says whether requests carry a token.
+func (o Options) HasToken() bool { return o.token() != "" }
+
+// ghToken is the token of the GitHub CLI's login, "" when gh is not
+// installed or not logged in. It is asked once, when first needed.
+var ghToken = sync.OnceValue(func() string {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "gh", "auth", "token", "--hostname", "github.com").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+})
 
 func (o Options) api() string {
 	if o.API != "" {
@@ -108,6 +141,42 @@ func (r Release) Asset(name string) (Asset, bool) {
 	return Asset{}, false
 }
 
+// RateLimitError is the error when GitHub's limit of requests is used up
+// for now.
+type RateLimitError struct {
+	Reset time.Time // when requests are taken again; zero if not said
+	Token bool      // whether the requests carried a token
+}
+
+func (e *RateLimitError) Error() string {
+	msg := "GitHub's limit of requests is used up"
+	if !e.Reset.IsZero() {
+		msg += " until " + e.Reset.Local().Format("15:04")
+	}
+	if !e.Token {
+		msg += "; log in with gh (gh auth login), or set GITHUB_TOKEN, for a higher one"
+	}
+	return msg
+}
+
+// rateLimited is the error of an answer that says the limit is used up,
+// nil for any other.
+func rateLimited(resp *http.Response, token bool) error {
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return nil
+	}
+	if resp.Header.Get("X-RateLimit-Remaining") != "0" && resp.Header.Get("Retry-After") == "" {
+		return nil
+	}
+	e := &RateLimitError{Token: token}
+	if n, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+		e.Reset = time.Unix(n, 0)
+	} else if n, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil {
+		e.Reset = time.Now().Add(time.Duration(n) * time.Second)
+	}
+	return e
+}
+
 // ErrNoRelease is the error when the repository has no release (or, for a
 // private one without a token, none that can be seen).
 var ErrNoRelease = errors.New("no release found")
@@ -131,6 +200,9 @@ func Latest(ctx context.Context, o Options, tag string) (Release, error) {
 		return Release{}, err
 	}
 	defer resp.Body.Close()
+	if err := rateLimited(resp, o.HasToken()); err != nil {
+		return Release{}, err
+	}
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return Release{}, ErrNoRelease
@@ -155,8 +227,8 @@ func (o Options) request(ctx context.Context, url, accept string) (*http.Request
 	// GitHub wants a User-Agent; this one names the app alone.
 	req.Header.Set("User-Agent", "shiori-update")
 	req.Header.Set("Accept", accept)
-	if o.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+o.Token)
+	if tok := o.token(); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	return req, nil
 }
@@ -165,7 +237,7 @@ func (o Options) request(ctx context.Context, url, accept string) (*http.Request
 // repository's assets are not public), else by its download URL.
 func (o Options) fetch(ctx context.Context, a Asset, w io.Writer, limit int64) error {
 	url, accept := a.DownloadURL, "*/*"
-	if o.Token != "" && a.APIURL != "" {
+	if o.HasToken() && a.APIURL != "" {
 		url, accept = a.APIURL, "application/octet-stream"
 	}
 	req, err := o.request(ctx, url, accept)

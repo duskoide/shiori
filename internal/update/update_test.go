@@ -13,8 +13,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCompare(t *testing.T) {
@@ -215,5 +217,49 @@ func TestChecksumOf(t *testing.T) {
 	}
 	if _, ok := checksumOf(list, "x"); ok {
 		t.Fatal("found")
+	}
+}
+
+func TestGHToken(t *testing.T) {
+	was := ghToken
+	t.Cleanup(func() { ghToken = was })
+	ghToken = func() string { return "from-gh" }
+	if got := (Options{UseGH: true}).token(); got != "from-gh" {
+		t.Fatalf("no token set: %q", got)
+	}
+	if got := (Options{UseGH: true, Token: "set"}).token(); got != "set" {
+		t.Fatalf("a token set comes first: %q", got)
+	}
+	if got := (Options{UseGH: true, API: "https://example.com"}).token(); got != "" {
+		t.Fatalf("gh's token went to another API: %q", got)
+	}
+	if got := (Options{}).token(); got != "" {
+		t.Fatalf("without UseGH: %q", got)
+	}
+}
+
+func TestRateLimited(t *testing.T) {
+	reset := time.Now().Add(20 * time.Minute).Truncate(time.Second)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/o/denied/releases/latest" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(srv.Close)
+	_, err := Latest(context.Background(), Options{API: srv.URL, Repo: "o/r"}, "")
+	var rl *RateLimitError
+	if !errors.As(err, &rl) || !rl.Reset.Equal(reset) || rl.Token {
+		t.Fatalf("%v", err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, reset.Local().Format("15:04")) || !strings.Contains(msg, "gh auth login") {
+		t.Fatalf("message %q", msg)
+	}
+	_, err = Latest(context.Background(), Options{API: srv.URL, Repo: "o/denied"}, "")
+	if err == nil || errors.As(err, &rl) {
+		t.Fatalf("a plain 403 is no limit: %v", err)
 	}
 }

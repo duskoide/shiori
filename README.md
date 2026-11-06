@@ -144,8 +144,16 @@ shiori update --version v0.2.0  # or a release of your choice
 `shiori update` downloads the release for this OS and CPU, checks it
 against the release's `checksums.txt`, and replaces the binary and the
 herdr-core bundled beside it (where `install.sh` put them). Close Shiori
-and open it again afterwards. While the repository is private, set
-`GITHUB_TOKEN` to a token that can read it.
+and open it again afterwards.
+
+Requests to GitHub carry a token when there is one: `GITHUB_TOKEN`, else
+`GH_TOKEN`, else the token of the GitHub CLI's login (`gh auth token`,
+when `gh` is installed and logged in). Without one, GitHub takes 60
+requests an hour from an address and then refuses them until the hour
+is up, which Shiori says, with the time; with one it takes 5,000. While
+the repository is private, the token must be able to read it. The CLI's
+token goes only to GitHub's own API, not to one `SHIORI_UPDATE_API`
+names.
 
 The window also looks for a new release once a day and, when there is
 one, says so once and shows "Update to …" in the status bar. That look
