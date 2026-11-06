@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/duskoide/shiori/internal/core"
 	"github.com/duskoide/shiori/internal/layout"
 	"github.com/duskoide/shiori/internal/recovery"
+	"github.com/duskoide/shiori/internal/resume"
 )
 
 // restartedCore is a fake core that starts terminals, as a new core does:
@@ -242,5 +245,72 @@ func TestOtherMachinesPanesAreNotRestored(t *testing.T) {
 	a.rc.snap.Panes = map[string]recovery.Pane{"mac/p1": {Terminal: "mac/t1", CreatedMs: 5, Cwd: "/", Core: oldCore}}
 	if _, lost := a.lostPane("mac/p1", "mac/t1"); lost {
 		t.Fatal("this core's restart says nothing of another machine's terminals")
+	}
+}
+
+// The tail of a restored terminal's argv: the command its shell runs.
+func ranCommand(run core.RunParams, n int) []string {
+	if len(run.Argv) < n {
+		return run.Argv
+	}
+	return run.Argv[len(run.Argv)-n:]
+}
+
+func TestLostAgentStartsOnItsConversation(t *testing.T) {
+	dir := t.TempDir()
+	conv := filepath.Join(dir, "s.jsonl")
+	if err := os.WriteFile(conv, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	panes := map[string]recovery.Pane{"p1": {Terminal: "t1", CreatedMs: 5, Cwd: dir, Core: oldCore, Agent: "pi", SessionID: "abc", SessionPath: conv}}
+	a, f := restartApp(t, paneDoc(), newCore, panes)
+	until(t, a, "the restore", func() bool { return len(f.ran()) == 1 && !a.rc.busy })
+	run := f.ran()[0]
+	if got := ranCommand(run, 3); !slices.Equal(got, []string{"pi", "--session", conv}) || run.Cwd != dir {
+		t.Fatalf("run %+v", run)
+	}
+	// A second loss before the agent is looked at again still knows it.
+	if p := a.rc.snap.Panes["p1"]; p.Agent != "pi" || p.SessionPath != conv {
+		t.Fatalf("snapshot %+v", p)
+	}
+}
+
+func TestLostAgentWithoutAConversationContinuesTheLatest(t *testing.T) {
+	panes := map[string]recovery.Pane{"p1": {Terminal: "t1", CreatedMs: 5, Cwd: "/", Core: oldCore, Agent: "claude"}}
+	a, f := restartApp(t, paneDoc(), newCore, panes)
+	until(t, a, "the restore", func() bool { return len(f.ran()) == 1 && !a.rc.busy })
+	if got := ranCommand(f.ran()[0], 2); !slices.Equal(got, []string{"claude", "--continue"}) {
+		t.Fatalf("run %q", f.ran()[0].Argv)
+	}
+}
+
+func TestResumeAgentsOff(t *testing.T) {
+	panes := map[string]recovery.Pane{"p1": {Terminal: "t1", CreatedMs: 5, Cwd: "/", Core: oldCore, Agent: "claude", SessionID: "x"}}
+	a, f := restartApp(t, paneDoc(), newCore, nil)
+	off := false
+	a.cfg.ResumeAgents = &off
+	a.rc.snap.Panes = panes
+	a.connectedCore(newCore)
+	a.reconcile()
+	until(t, a, "the restore", func() bool { return len(f.ran()) == 1 && !a.rc.busy })
+	if argv := f.ran()[0].Argv; len(argv) != 0 {
+		t.Fatalf("an agent started with resume_agents off: %q", argv)
+	}
+}
+
+func TestSnapshotKeepsTheAgentsConversation(t *testing.T) {
+	rec := core.Terminal{Address: "t1", State: "live", CreatedMs: 42, Cwd: "/w", Status: &core.Status{App: "pi", State: "idle"},
+		Foreground: &core.Foreground{Pid: 77, Cwd: "/w", Argv: []string{"pi"}}, Labels: map[string]string{"herdr.space": "s1", "herdr.tab": "tab1"}}
+	a, _ := restartApp(t, paneDoc(), newCore, nil, rec)
+	a.rc.sessions = map[string]agentSession{"t1": {pid: 77, key: "pi", s: resume.Session{ID: "abc", Path: "/x/abc.jsonl"}}}
+	a.writeSnapshot()
+	if p := a.rc.snap.Panes["p1"]; p.Agent != "pi" || p.SessionID != "abc" || p.SessionPath != "/x/abc.jsonl" {
+		t.Fatalf("%+v", p)
+	}
+	// Another process since: the agent is kept, not the conversation.
+	a.rc.sessions["t1"] = agentSession{pid: 78, key: "pi", s: resume.Session{ID: "old"}}
+	a.writeSnapshot()
+	if p := a.rc.snap.Panes["p1"]; p.Agent != "pi" || p.SessionID != "" {
+		t.Fatalf("%+v", p)
 	}
 }

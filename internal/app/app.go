@@ -178,6 +178,9 @@ type Settings struct {
 	// Restore false closes the panes whose terminals herdr-core lost when
 	// it stopped, instead of starting fresh shells in them.
 	Restore *bool `json:"restore,omitempty"`
+	// ResumeAgents false starts the restored panes' agents as fresh
+	// shells too, instead of on the conversations they were in.
+	ResumeAgents *bool `json:"resume_agents,omitempty"`
 	// Mods are the mods turned on or off, by id.
 	Mods map[string]ModSetting `json:"mods,omitempty"`
 }

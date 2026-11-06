@@ -1027,7 +1027,7 @@ func (a *App) layoutPage(c *ui.Context, k *colors) {
 	settingsGroup(c, k, "Recovery", "When herdr-core stops without its terminals (a crash, a kill, a reboot), their programs end, but the layout stays. Shiori keeps "+recovery.FileName(a.session)+" so it can bring the panes back.", func() {
 		on := a.restoreOn()
 		overSwitch := false
-		row := settingRow(c, k, "Restore panes after herdr-core stops", "Each pane gets a fresh shell in the folder it last worked in, instead of closing. Programs and agents start anew.", func() {
+		row := settingRow(c, k, "Restore panes after herdr-core stops", "Each pane gets a fresh shell in the folder it last worked in, instead of closing. Other programs start anew.", func() {
 			v := on
 			sw := ui.Switch(c, &v).Label("Restore panes")
 			overSwitch = sw.Hovered()
@@ -1040,6 +1040,21 @@ func (a *App) layoutPage(c *ui.Context, k *colors) {
 			a.post(func() { a.setRestore(!on) })
 		}
 		fileNote(c, k, `settings.json  "restore"`)
+		resumeOn := a.resumeAgentsOn()
+		overResume := false
+		rrow := settingRow(c, k, "Resume agents", "A pane that ran Claude Code, Codex, Pi or OpenCode starts the agent again on the conversation it was in, else on the latest one in its folder.", func() {
+			v := resumeOn
+			sw := ui.Switch(c, &v).Label("Resume agents").Disabled(!on)
+			overResume = sw.Hovered()
+			if v != resumeOn && on {
+				a.post(func() { a.setResumeAgents(v) })
+			}
+		})
+		rrow.Cursor(ui.CursorPointer).Label("Resume agents")
+		if rrow.Clicked() && !overResume && on {
+			a.post(func() { a.setResumeAgents(!resumeOn) })
+		}
+		fileNote(c, k, `settings.json  "resume_agents"`)
 	})
 }
 

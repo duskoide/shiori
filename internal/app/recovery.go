@@ -10,6 +10,7 @@ import (
 	"github.com/duskoide/shiori/internal/core"
 	"github.com/duskoide/shiori/internal/layout"
 	"github.com/duskoide/shiori/internal/recovery"
+	"github.com/duskoide/shiori/internal/resume"
 )
 
 // Session recovery, as herdr's: when herdr-core stops without its
@@ -33,6 +34,13 @@ type recoveryState struct {
 	restoring map[string]bool          // of those, the ones whose terminal is being started again
 	busy      bool                     // a restore is in flight
 	settling  bool                     // a look once the core settled is due
+
+	// The conversations the agents were last found in, by terminal
+	// address (see resume.go).
+	sessions  map[string]agentSession
+	scanning  bool      // a look for them is in flight
+	scannedAt time.Time // when the last one began or ended
+	scanDue   bool      // a look is due after agentScanEvery
 }
 
 const (
@@ -135,6 +143,8 @@ type restoreJob struct {
 	was                    recovery.Pane
 	dirs                   []string // the folders to start in, the first that is one
 	dir                    string   // the one it started in
+	spec                   resume.Spec
+	argv                   []string // what it started: nil a shell
 	got                    string   // the new terminal's address
 	err                    error
 	back                   bool // it was not lost after all
@@ -163,8 +173,12 @@ func (a *App) startRestore() {
 			delete(a.rc.lost, paneID)
 			continue
 		}
-		jobs = append(jobs, &restoreJob{pane: paneID, addr: was.Terminal, space: s.ID, tab: t.ID, was: was,
-			dirs: []string{was.Cwd, s.Folder, homeDir()}})
+		j := &restoreJob{pane: paneID, addr: was.Terminal, space: s.ID, tab: t.ID, was: was,
+			dirs: []string{was.Cwd, s.Folder, homeDir()}}
+		if a.resumeAgentsOn() {
+			j.spec = resumeSpec(was.Agent)
+		}
+		jobs = append(jobs, j)
 	}
 	if len(jobs) == 0 {
 		return
@@ -194,7 +208,8 @@ func (a *App) startRestore() {
 			}
 			labels := map[string]string{"herdr.space": j.space, "herdr.tab": j.tab, "herdr.seen": "0"}
 			j.dir = firstDir(j.dirs)
-			j.got, j.err = be.Run(ctx, core.RunParams{Cwd: j.dir, Labels: labels, Keep: true})
+			j.argv = resumeArgv(j.spec, j.was)
+			j.got, j.err = be.Run(ctx, core.RunParams{Argv: j.argv, Cwd: j.dir, Labels: labels, Keep: true})
 			cancel()
 		}
 		a.post(func() { a.restored(be, gen, jobs) })
@@ -229,7 +244,7 @@ func (a *App) restored(be backend, gen int, jobs []*restoreJob) {
 		killAll(be, jobs)
 		return
 	}
-	restored, failed := 0, 0
+	restored, resumed, failed := 0, 0, 0
 	var unused []*restoreJob
 	for _, j := range jobs {
 		delete(a.rc.lost, j.pane)
@@ -250,7 +265,14 @@ func (a *App) restored(be backend, gen int, jobs []*restoreJob) {
 		p.Content.Terminal = j.got
 		// The pane's terminal is this core's now, even when the core gave
 		// it the lost one's address.
-		a.rc.snap.Panes[j.pane] = recovery.Pane{Terminal: j.got, Cwd: j.dir, Core: a.rc.core}
+		pane := recovery.Pane{Terminal: j.got, Cwd: j.dir, Core: a.rc.core}
+		if j.argv != nil {
+			// Until the agent is looked at again, it is still in that
+			// conversation.
+			pane.Agent, pane.SessionID, pane.SessionPath = j.was.Agent, j.was.SessionID, j.was.SessionPath
+			resumed++
+		}
+		a.rc.snap.Panes[j.pane] = pane
 		a.freshAddress(j.got)
 		a.pending[j.got] = time.Now()
 		restored++
@@ -261,6 +283,15 @@ func (a *App) restored(be backend, gen int, jobs []*restoreJob) {
 		a.focusReq = a.focus[a.activeTab[a.activeSpace]]
 	}
 	switch {
+	case resumed > 0 && failed == 0:
+		msg := "herdr-core stopped: an agent started again on its conversation"
+		if resumed > 1 {
+			msg = "herdr-core stopped: " + plural(resumed, "agent", "agents") + " started again on their conversations"
+		}
+		if shells := restored - resumed; shells > 0 {
+			msg += ", " + plural(shells, "pane gets a fresh shell", "panes get fresh shells")
+		}
+		a.notify(msg)
 	case restored > 0 && failed > 0:
 		a.notifyLevel("herdr-core stopped: "+plural(restored, "terminal", "terminals")+" started again, "+plural(failed, "terminal", "terminals")+" could not start", levelError)
 	case restored == 1:
@@ -381,7 +412,9 @@ func (a *App) writeSnapshot() {
 					if rec.Foreground != nil && rec.Foreground.Cwd != "" {
 						cwd = rec.Foreground.Cwd
 					}
-					panes[p.ID] = recovery.Pane{Terminal: addr, CreatedMs: rec.CreatedMs, Cwd: cwd, Core: a.rc.core}
+					pane := recovery.Pane{Terminal: addr, CreatedMs: rec.CreatedMs, Cwd: cwd, Core: a.rc.core}
+					a.agentOf(rec, &pane)
+					panes[p.ID] = pane
 				} else if old, kept := s.Panes[p.ID]; kept && old.Terminal == addr {
 					// Not to be seen now: what was known stays.
 					panes[p.ID] = old

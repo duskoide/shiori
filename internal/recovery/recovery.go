@@ -70,6 +70,12 @@ type Pane struct {
 	Cwd string `json:"cwd,omitempty"`
 	// Core is the core process it was last seen running in.
 	Core Core `json:"core"`
+	// Agent is the key of the coding agent it ran (programs.json's), to
+	// start again; SessionID and SessionPath the conversation it was in,
+	// when it could be told.
+	Agent       string `json:"agent,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	SessionPath string `json:"session_path,omitempty"`
 }
 
 // Snapshot is the file: the layout as the window last showed it, and its
