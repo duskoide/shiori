@@ -125,7 +125,7 @@ func TestPrefixKeyWithModifiersHeld(t *testing.T) {
 }
 
 func TestTypedLabel(t *testing.T) {
-	for in, want := range map[string]string{"Shift+/": "?", "Shift+A": "A", "Ctrl+Shift+/": "Ctrl+Shift+/", "Space": "Space"} {
+	for in, want := range map[string]string{"Shift+/": "?", "Shift+A": "A", "Shift+1": "Shift+1", "Ctrl+Shift+/": "Ctrl+Shift+/", "Space": "Space"} {
 		if got := typedLabel(in); got != want {
 			t.Errorf("typedLabel(%q) = %q, want %q", in, got, want)
 		}
@@ -150,7 +150,7 @@ func TestPrefixKeyAsTextAlone(t *testing.T) {
 }
 
 func TestTextChord(t *testing.T) {
-	for text, want := range map[string]string{"?": "shift-/", "v": "v", "V": "shift-v", "%": "", " ": "space", "|": "shift-\\"} {
+	for text, want := range map[string]string{"?": "shift-/", "v": "v", "V": "shift-v", "%": "shift-5", "!": "shift-1", "é": "", " ": "space", "|": "shift-\\"} {
 		got, ok := textChord(text)
 		if want == "" {
 			if ok {
@@ -161,5 +161,34 @@ func TestTextChord(t *testing.T) {
 		if w := chord(t, want); !ok || got != w {
 			t.Errorf("%q: %v %v, want %v", text, got, ok, w)
 		}
+	}
+}
+
+// The prefix key, then Shift and a digit, goes to that space: as a key
+// press, or as its text alone (! for Shift+1), as on Linux.
+func TestPrefixShiftDigitSelectsSpace(t *testing.T) {
+	a, _ := uxApp(t)
+	tt := uxTester(a)
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Key(ui.Shift, ui.Key3)
+	settle(tt)
+	if a.prefixPending() || a.activeSpace != a.doc.Spaces[2].ID {
+		t.Fatalf("pending %v, space %q, want %q", a.prefixPending(), a.activeSpace, a.doc.Spaces[2].ID)
+	}
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Type("@")
+	settle(tt)
+	if a.prefixPending() || a.activeSpace != a.doc.Spaces[1].ID {
+		t.Fatalf("pending %v, space %q, want %q", a.prefixPending(), a.activeSpace, a.doc.Spaces[1].ID)
+	}
+	// A space that is not there leaves it as it is.
+	tt.Key(ui.Ctrl, ui.KeyB)
+	settle(tt)
+	tt.Key(ui.Shift, ui.Key9)
+	settle(tt)
+	if a.activeSpace != a.doc.Spaces[1].ID {
+		t.Fatalf("space %q, want %q", a.activeSpace, a.doc.Spaces[1].ID)
 	}
 }

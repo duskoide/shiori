@@ -246,6 +246,10 @@ var uiKeys = map[string]struct {
 	"]": {key: ui.KeyBracketRight}, "}": {key: ui.KeyBracketRight, shift: true},
 	"\\": {key: ui.KeyBackslash}, "|": {key: ui.KeyBackslash, shift: true},
 	"`": {key: ui.KeyBackquote}, "~": {key: ui.KeyBackquote, shift: true},
+	"!": {key: ui.Key1, shift: true}, "@": {key: ui.Key2, shift: true}, "#": {key: ui.Key3, shift: true},
+	"$": {key: ui.Key4, shift: true}, "%": {key: ui.Key5, shift: true}, "^": {key: ui.Key6, shift: true},
+	"&": {key: ui.Key7, shift: true}, "*": {key: ui.Key8, shift: true}, "(": {key: ui.Key9, shift: true},
+	")": {key: ui.Key0, shift: true},
 }
 
 func init() {

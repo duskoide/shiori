@@ -277,5 +277,8 @@ func typedLabel(key string) string {
 	if s, ok := map[string]string{"/": "?", ",": "<", ".": ">", "=": "+", ";": ":", "'": "\"", "[": "{", "]": "}", "-": "_"}[rest]; ok {
 		return s
 	}
-	return strings.ToUpper(rest)
+	if u := strings.ToUpper(rest); u[0] >= 'A' && u[0] <= 'Z' {
+		return u
+	}
+	return key // Shift+1, not 1
 }
