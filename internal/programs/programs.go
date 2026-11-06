@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/duskoide/shiori/internal/resume"
 )
 
 //go:embed programs.json
@@ -37,6 +39,9 @@ type Program struct {
 	Shell, Agent bool
 	// Run is the argv that starts an agent from a menu; nil otherwise.
 	Run []string
+	// Resume is how an agent starts again on a conversation, after its
+	// terminal was lost; zero when it cannot.
+	Resume resume.Spec
 }
 
 type entry struct {
@@ -47,6 +52,8 @@ type entry struct {
 	Color string   `json:"color"`
 	Match []string `json:"match"`
 	Run   []string `json:"run"`
+	// Resume replaces as a whole.
+	Resume *resume.Spec `json:"resume"`
 }
 
 // Table is a program table: shells, interpreters and per-key entries.
@@ -126,6 +133,9 @@ func (t *Table) Merge(user []byte) error {
 		}
 		if len(m.Run) > 0 {
 			e.Run = m.Run
+		}
+		if m.Resume != nil {
+			e.Resume = m.Resume
 		}
 		next[k] = e
 	}
@@ -226,6 +236,9 @@ func (t *Table) show(key string, e entry, name string, shell, agent bool) Progra
 	}
 	if len(e.Run) > 0 {
 		p.Run = append([]string(nil), e.Run...)
+	}
+	if e.Resume != nil {
+		p.Resume = resume.Spec{ID: append([]string(nil), e.Resume.ID...), Last: append([]string(nil), e.Resume.Last...)}
 	}
 	return p
 }

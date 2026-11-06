@@ -176,7 +176,8 @@ given to another terminal) gets a fresh shell in the folder it last
 worked in, in the same place in the layout, after the core has run for
 three seconds (terminals that outlived the old core come back to the
 new one first). A folder that is gone falls back to the space's, then
-home. Programs and agents do not come back; start them again. If the new
+home. A pane that ran a coding agent starts it again on the conversation
+it was in (see below); other programs do not come back. If the new
 core has no layout at all (its documents were lost too), the window puts
 back the one it kept. Panes whose programs ended close as before. Only
 this machine's panes are brought back: other machines' terminals run in
@@ -184,6 +185,26 @@ their own cores.
 
 Turn it off in Settings → Layout, or with `"restore": false` in
 `settings.json`: lost panes then close.
+
+Agents: while Claude Code, Codex, Pi or OpenCode run in a pane, the
+window looks every 15 seconds for the conversation each is in and keeps
+it in the snapshot. Agents do not say, so it is worked out from their
+session files (`~/.claude`, `~/.codex`, `~/.pi/agent`, or
+`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `PI_CODING_AGENT_DIR`): the one the
+process names (Claude Code's file per process, a file it holds open on
+Linux), else the one made in its folder since it started that it wrote
+to last, else the one its command line named. Two agents of a kind in a
+folder are told apart by when they started. The agent then starts again
+with its `resume` command from `programs.json` (`claude --resume <id>`,
+`codex resume <id>`, `pi --session <file>`), or, when its conversation
+could not be told or its file is gone, on the latest one in its folder
+(`claude --continue`, `codex resume --last`, `pi --continue`, `opencode
+--continue`). It starts bare, without the options it first had, in a
+shell that stays when it exits. Turn it off with `"resume_agents":
+false`. A `programs.json` entry can give another agent a way:
+`"resume": {"id": ["x", "--resume", "{id}"], "last": ["x", "--continue"]}`
+(`{path}` is the session's file); without a way to find its
+conversations, only `last` is used.
 
 ## Files
 
@@ -208,8 +229,10 @@ selects the herdr-core session.
 | | `copy_on_select` | `false` stops what the mouse selects in a terminal from going to the clipboard | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |
 | | `changes` | `true` shows the changes panel | Layout |
+| | `sidebar_width`, `changes_width` | the widths the sidebar and the changes panel were dragged to (none is the narrowest, 180 and 220) | Layout |
 | | `update_check` | `false` stops the daily look for a new version | About |
 | | `restore` | `false` closes the panes whose terminals herdr-core lost when it stopped, instead of starting fresh shells in them | Layout |
+| | `resume_agents` | `false` starts the restored panes' agents as fresh shells too, instead of on the conversations they were in | Layout |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |
 | `keys.json` | `{"section": {"chord": "action"}}` | changes to the default key bindings (and the mods'): a chord bound anew, or `"none"` to remove one; `global` holds only the prefix key (`"ctrl-b": "app.prefix"`, the one key the window reads itself: it goes from normal mode to command mode, which the status bar shows), `prefix` holds the keys of command mode, `terminal` the keys a terminal takes first; other sections are kept for herdr-app | Keyboard |
 | `mods/<id>/mod.json` | | a mod: see [examples/mods](examples/mods/README.md) | Mods |
@@ -253,6 +276,11 @@ SHIORI_IT=1 SHIORI_SHOTS=/tmp/shots /tmp/shiori-app.test -test.run TestIntegrati
 `SHIORI_DEVTOOLS=1` turns on MyGo's element inspector (F12, or
 Ctrl+Shift+C to pick an element); without it those keys are the
 terminals'.
+
+## Development
+
+Work goes to the `develop` branch. How to build, test and commit:
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## License
 

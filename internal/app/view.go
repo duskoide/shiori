@@ -64,10 +64,14 @@ func (a *App) sidebarDivider(c *ui.Context, k *colors) {
 	div := ui.Box(c).Width(sidebarGrip).Margin(0, 0, 0, 1-sidebarGrip).Shrink(0).
 		Cursor(ui.CursorResizeColumn).Role(ui.RoleSplitter).Label("Sidebar edge").Tooltip("Drag to resize, double-click to reset")
 	if dx, _, ok := div.Dragged(); ok {
-		a.sidebarW = min(max(a.sidebarW+dx, sidebarMin), sidebarMax)
+		if w := min(max(a.cfg.sidebarWidth()+dx, sidebarMin), sidebarMax); w != a.cfg.sidebarWidth() {
+			a.cfg.SidebarWidth = w
+			a.saveSettingsSoon()
+		}
 	}
-	if div.DoubleClicked() {
-		a.sidebarW = sidebarWidth
+	if div.DoubleClicked() && a.cfg.SidebarWidth != 0 {
+		a.cfg.SidebarWidth = 0
+		a.saveSettingsSoon()
 	}
 	active := div.Hovered() || div.Dragging()
 	div.Draw(func(p *ui.Painter, r ui.Rect) {

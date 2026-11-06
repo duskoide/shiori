@@ -14,7 +14,7 @@ import (
 
 // sidebar is the brand, the spaces and agents lists, and the footer.
 func (a *App) sidebar(c *ui.Context, k *colors) {
-	ui.Column(c).Width(a.sidebarW).Shrink(0).MinHeight(0).Background(k.chrome).Children(func() {
+	ui.Column(c).Width(a.cfg.sidebarWidth()).Shrink(0).MinHeight(0).Background(k.chrome).Children(func() {
 		a.brand(c, k)
 		ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 			ui.Column(c).Grow(1).Basis(0).MinHeight(90).Children(func() { a.spacesList(c, k) })

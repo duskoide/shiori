@@ -643,6 +643,7 @@ func (a *App) reconcile() {
 		a.changed()
 	}
 	a.snapshotSoon()
+	a.scanAgents()
 }
 
 // terminalsKnown reports whether the window can tell which of a
