@@ -28,10 +28,12 @@ whoever changes it.
 
 ### Commit messages
 
-A subject line, a blank line, then a body when one is needed:
+Messages follow [Conventional Commits](https://www.conventionalcommits.org):
+a subject line, a blank line, then a body when one is needed, then any
+footers:
 
 ```
-Resume agents on their conversation after a crash
+feat(recovery): resume agents on their conversation after a crash
 
 herdr-core loses its terminals when it stops, and a pane that ran an
 agent came back as a bare shell, the conversation left to find by hand.
@@ -42,19 +44,43 @@ Agents do not say which conversation they are in, so it is worked out
 from their session files every 15 seconds.
 ```
 
-The subject:
+The subject is `type(scope): description`, or `type: description`
+when no one area fits.
 
-- **Imperative mood**, as if giving an order: `Add`, `Fix`, `Drop`,
-  `Keep`, not `Added` or `Adds`. It should complete the sentence "If
+Types:
+
+| Type | For |
+| --- | --- |
+| `feat` | a new feature or behaviour the user can see |
+| `fix` | a bug fix |
+| `perf` | a change that makes something faster or lighter, nothing else |
+| `refactor` | a change to the code that neither fixes a bug nor adds a feature |
+| `docs` | the README, this guide, doc comments, the mods guide |
+| `test` | tests added or corrected, no change to the code tested |
+| `build` | the Makefile, `go.mod`, `mygo.json`, packaging, `install.sh` |
+| `ci` | `.github/workflows` |
+| `style` | formatting only (`gofmt`), no change in meaning |
+| `chore` | anything else that touches neither the code nor the tests |
+| `revert` | undoes an earlier commit; the body names its hash |
+
+Scopes are optional: the area the change touches, lowercase, one word
+or hyphenated. Ones in use: `app`, `sidebar`, `changes`, `settings`,
+`command-mode`, `keys`, `terminal`, `recovery`, `core`, `layout`,
+`machines`, `mods`, `programs`, `theme`, `update`, `dev`, `bench`,
+`logo`. Add a new one when none of these fits.
+
+The description:
+
+- **Imperative mood**, as if giving an order: `add`, `fix`, `drop`,
+  `keep`, not `added` or `adds`. It should complete the sentence "If
   applied, this commit will …".
-- **50 characters or fewer** where possible; 72 at most.
-- **Capitalized**, with **no trailing period**.
+- **Lowercase** first word (names keep their case: `Shift`, `GTK`),
+  **no trailing period**.
+- The whole subject **50 characters or fewer** where possible; 72 at
+  most.
 - Says what changes for the user or the code, not how
-  (`Fix paste into a terminal in command mode`, not `Change prefix.go`).
-- May start with the area it touches, then a colon, when that helps:
-  `Command mode: read a key that comes as its text alone`,
-  `Settings: add app text size and interface scale`. Use the area's
-  plain name, not a type prefix such as `feat:` or `fix:`.
+  (`fix(command-mode): paste into a terminal`, not
+  `fix: change prefix.go`).
 
 The body:
 
@@ -63,12 +89,24 @@ The body:
   diff already shows how. Name the problem first, then the change.
 - Mentions anything a reader of the log would not guess: a behaviour
   that changed, a setting added, a follow-up left to do.
-- Can be left out when the subject says it all (`Fix a typo in the
-  README`).
+- Can be left out when the subject says it all
+  (`docs: fix a typo in the README`).
+
+Breaking changes (a setting, file format, key binding or command that
+stops working as it did) put `!` before the colon and say what breaks,
+and what to do instead, in a `BREAKING CHANGE:` footer:
+
+```
+feat(settings)!: keep panel widths in layout.json
+
+BREAKING CHANGE: sidebar_width and changes_width in settings.json are
+no longer read; drag the panels to their widths again.
+```
 
 And:
 
-- No issue numbers or links in the subject; put them in the body.
+- No issue numbers or links in the subject; put them in the body, or a
+  footer such as `Refs: #12`.
 - No merge commits on `develop` (see Branches), so no `Merge branch …`
   subjects.
 - Commits already pushed are not reworded: `develop` is never
