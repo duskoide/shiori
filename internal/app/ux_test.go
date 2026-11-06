@@ -241,13 +241,22 @@ func TestSidebarEdgeIsEasyToCatch(t *testing.T) {
 	a, _ := uxApp(t)
 	tt := uxTester(a)
 	// A few pixels left of the line still catch it.
-	x, y := a.sidebarW-3, float32(300)
+	if w := a.cfg.sidebarWidth(); w != sidebarMin {
+		t.Fatalf("first width %v, want the narrowest %v", w, float32(sidebarMin))
+	}
+	x, y := a.cfg.sidebarWidth()-3, float32(300)
 	tt.Press(x, y)
 	tt.Move(x+40, y)
 	tt.Release(x+40, y)
 	settle(tt)
-	if a.sidebarW != sidebarWidth+40 {
-		t.Fatalf("width %v", a.sidebarW)
+	if w := a.cfg.sidebarWidth(); w != sidebarMin+40 {
+		t.Fatalf("width %v", w)
+	}
+	// The width is kept for the next start.
+	a.flushSettings()
+	a.loadSettings()
+	if w := a.cfg.sidebarWidth(); w != sidebarMin+40 {
+		t.Fatalf("width after a restart %v", w)
 	}
 }
 

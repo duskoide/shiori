@@ -208,6 +208,7 @@ selects the herdr-core session.
 | | `copy_on_select` | `false` stops what the mouse selects in a terminal from going to the clipboard | Terminal |
 | | `sidebar` | `false` hides the sidebar | Layout |
 | | `changes` | `true` shows the changes panel | Layout |
+| | `sidebar_width`, `changes_width` | the widths the sidebar and the changes panel were dragged to (none is the narrowest, 180 and 220) | Layout |
 | | `update_check` | `false` stops the daily look for a new version | About |
 | | `restore` | `false` closes the panes whose terminals herdr-core lost when it stopped, instead of starting fresh shells in them | Layout |
 | | `mods` | the mods turned on, each with the manifest it was turned on for | Mods |

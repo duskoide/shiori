@@ -23,7 +23,6 @@ import (
 // watches only while it shows.
 
 const (
-	changesWidth    = 300
 	changesMin      = 220
 	changesMax      = 640
 	changesFreshFor = 10 * time.Second // how long a change counts as new
@@ -34,8 +33,7 @@ type changesState struct {
 	w       *changes.Watcher
 	machine string // whose folder w watches: "" this machine's
 	snap    changes.Snapshot
-	have    bool    // snap is the watched folder's
-	width   float32 // the panel's width, 0 for the first
+	have    bool // snap is the watched folder's
 	list    ui.ListState
 	files   bool // the panel shows the files tab, not the changes
 }
@@ -124,10 +122,14 @@ func (a *App) changesDivider(c *ui.Context, k *colors) {
 	div := ui.Box(c).Width(sidebarGrip).Margin(0, 0, 0, 1-sidebarGrip).Shrink(0).
 		Cursor(ui.CursorResizeColumn).Role(ui.RoleSplitter).Label("Changes edge").Tooltip("Drag to resize, double-click to reset")
 	if dx, _, ok := div.Dragged(); ok {
-		a.chg.width = min(max(a.changesWidth()-dx, changesMin), changesMax)
+		if w := min(max(a.cfg.changesWidth()-dx, changesMin), changesMax); w != a.cfg.changesWidth() {
+			a.cfg.ChangesWidth = w
+			a.saveSettingsSoon()
+		}
 	}
-	if div.DoubleClicked() {
-		a.chg.width = changesWidth
+	if div.DoubleClicked() && a.cfg.ChangesWidth != 0 {
+		a.cfg.ChangesWidth = 0
+		a.saveSettingsSoon()
 	}
 	active := div.Hovered() || div.Dragging()
 	div.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -139,11 +141,13 @@ func (a *App) changesDivider(c *ui.Context, k *colors) {
 	})
 }
 
-func (a *App) changesWidth() float32 {
-	if a.chg.width == 0 {
-		return changesWidth
+// changesWidth is the changes panel's width, the narrowest unless dragged
+// wider.
+func (s Settings) changesWidth() float32 {
+	if s.ChangesWidth <= 0 {
+		return changesMin
 	}
-	return a.chg.width
+	return min(max(s.ChangesWidth, changesMin), changesMax)
 }
 
 // kindColor is the color of a change's mark.
@@ -162,7 +166,7 @@ func kindColor(k *colors, kind changes.Kind) ui.Color {
 func (a *App) changesPanel(c *ui.Context, k *colors) {
 	snap := a.chg.snap
 	machine, folder := a.changesFolder()
-	ui.Column(c).Width(a.changesWidth()).Shrink(0).MinHeight(0).Background(k.chrome).Label("Changes").Children(func() {
+	ui.Column(c).Width(a.cfg.changesWidth()).Shrink(0).MinHeight(0).Background(k.chrome).Label("Changes").Children(func() {
 		ui.Row(c).Height(36).Padding(0, 6, 0, 14).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 			a.panelTab(c, k, "Changes", !a.chg.files)
 			a.panelTab(c, k, "Files", a.chg.files)

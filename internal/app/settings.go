@@ -1005,7 +1005,7 @@ func (a *App) layoutPage(c *ui.Context, k *colors) {
 			a.post(func() { a.setSidebar(!shown) })
 		}
 		fileNote(c, k, `settings.json  "sidebar"`)
-		ui.Text(c, "Drag the sidebar's edge to resize it; double-click the edge for its first width.").FontSize(ts(12)).TextColor(k.muted)
+		ui.Text(c, "Drag the sidebar's edge to resize it, kept in \"sidebar_width\"; double-click the edge for its narrowest.").FontSize(ts(12)).TextColor(k.muted)
 	})
 	settingsGroup(c, k, "Changes", "", func() {
 		shown := a.cfg.changesShown()

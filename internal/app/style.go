@@ -9,7 +9,6 @@ import (
 
 // Sizes of the window's regions, in DIPs, as the Herdr layout has them.
 const (
-	sidebarWidth   = 268
 	sidebarMin     = 180
 	sidebarMax     = 480
 	brandHeight    = 46

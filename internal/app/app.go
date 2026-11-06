@@ -145,9 +145,8 @@ type App struct {
 	modNoticed map[string]bool
 	cfg        Settings
 	// prefix is command mode while it lasts, nil otherwise. Main thread only.
-	prefix   *prefixMode
-	k        *colors
-	sidebarW float32
+	prefix *prefixMode
+	k      *colors
 }
 
 // Settings are the person's preferences, settings.json in the app's home.
@@ -170,6 +169,10 @@ type Settings struct {
 	Sidebar      *bool `json:"sidebar,omitempty"`
 	// Changes shows the changes panel.
 	Changes *bool `json:"changes,omitempty"`
+	// SidebarWidth and ChangesWidth are the widths the sidebar and the
+	// changes panel were dragged to, in DIPs; 0 is the narrowest.
+	SidebarWidth float32 `json:"sidebar_width,omitempty"`
+	ChangesWidth float32 `json:"changes_width,omitempty"`
 	// UpdateCheck false stops the daily look for a new version.
 	UpdateCheck *bool `json:"update_check,omitempty"`
 	// Restore false closes the panes whose terminals herdr-core lost when
@@ -221,6 +224,14 @@ func (s Settings) uiScale() float32 {
 
 func (s Settings) sidebarShown() bool { return s.Sidebar == nil || *s.Sidebar }
 
+// sidebarWidth is the sidebar's width, the narrowest unless dragged wider.
+func (s Settings) sidebarWidth() float32 {
+	if s.SidebarWidth <= 0 {
+		return sidebarMin
+	}
+	return min(max(s.SidebarWidth, sidebarMin), sidebarMax)
+}
+
 // newApp makes the app's state, its settings and keys read from home.
 func newApp(home, session string) *App {
 	a := &App{
@@ -245,7 +256,6 @@ func newApp(home, session string) *App {
 		sessions:   map[*rpcSession]bool{},
 		mods:       map[string]*modState{},
 		modNoticed: map[string]bool{},
-		sidebarW:   sidebarWidth,
 	}
 	a.loadSettings()
 	a.loadSnapshot()
