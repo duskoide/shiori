@@ -23,12 +23,56 @@ whoever changes it.
   your git is set up otherwise, pass it per commit:
   `git -c user.name='Rafi Putra Nugraha' -c user.email=rafipeen@gmail.com commit`.
 - No `Co-Authored-By`, no session or tool trailers, nothing naming an AI.
-- Subjects in the style of the log: a short plain sentence of what
-  changed, no type prefix, no trailing period
-  (`Command mode takes text from the system`,
-  `Settings: app text size and interface scale`). A body, when needed,
-  says why.
 - One commit per coherent change, each passing `make check` on its own.
+  Unrelated changes go in separate commits, even when made together.
+
+### Commit messages
+
+A subject line, a blank line, then a body when one is needed:
+
+```
+Resume agents on their conversation after a crash
+
+herdr-core loses its terminals when it stops, and a pane that ran an
+agent came back as a bare shell, the conversation left to find by hand.
+The window now keeps each agent's session in the snapshot and starts
+the agent again on it.
+
+Agents do not say which conversation they are in, so it is worked out
+from their session files every 15 seconds.
+```
+
+The subject:
+
+- **Imperative mood**, as if giving an order: `Add`, `Fix`, `Drop`,
+  `Keep`, not `Added` or `Adds`. It should complete the sentence "If
+  applied, this commit will …".
+- **50 characters or fewer** where possible; 72 at most.
+- **Capitalized**, with **no trailing period**.
+- Says what changes for the user or the code, not how
+  (`Fix paste into a terminal in command mode`, not `Change prefix.go`).
+- May start with the area it touches, then a colon, when that helps:
+  `Command mode: read a key that comes as its text alone`,
+  `Settings: add app text size and interface scale`. Use the area's
+  plain name, not a type prefix such as `feat:` or `fix:`.
+
+The body:
+
+- Wrapped at **72 columns**.
+- Says **why** the change was made and what it does differently; the
+  diff already shows how. Name the problem first, then the change.
+- Mentions anything a reader of the log would not guess: a behaviour
+  that changed, a setting added, a follow-up left to do.
+- Can be left out when the subject says it all (`Fix a typo in the
+  README`).
+
+And:
+
+- No issue numbers or links in the subject; put them in the body.
+- No merge commits on `develop` (see Branches), so no `Merge branch …`
+  subjects.
+- Commits already pushed are not reworded: `develop` is never
+  force-pushed. Older commits in other styles stay as they are.
 
 ## Setup
 
