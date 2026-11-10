@@ -43,6 +43,7 @@ func (a *App) view(c *ui.Context) {
 			a.statusBar(c, k)
 		})
 	})
+	a.noteSpace()
 	a.shortcuts(c)
 	a.syncFocus()
 	a.syncChanges()

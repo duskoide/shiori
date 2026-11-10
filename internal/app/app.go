@@ -90,6 +90,7 @@ type App struct {
 
 	// What this window looks at, which the document does not keep.
 	activeSpace string
+	lastSpace   map[string]string   // machine → the space last shown there (machineswitch.go)
 	activeTab   map[string]string   // space → tab
 	focus       map[string]string   // tab → pane
 	history     map[string][]string // tab → panes focused before, latest last
@@ -249,6 +250,7 @@ func newApp(home, session string) *App {
 		seenTurns:  map[string]uint64{},
 		seenBusy:   map[string]time.Time{},
 		activeTab:  map[string]string{},
+		lastSpace:  map[string]string{},
 		focus:      map[string]string{},
 		history:    map[string][]string{},
 		zoomed:     map[string]string{},

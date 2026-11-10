@@ -121,8 +121,19 @@ func (a *App) machineHeader(c *ui.Context, k *colors, name string) {
 		row.Tooltip(tip)
 	}
 	row.ContextMenu(func(m *ui.Menu) {
+		spaces := a.spacesOn(name) > 0
+		if m.Item("Go to " + title).Disabled(!spaces || name == a.here()).Chosen() {
+			a.post(func() { a.doToast("machine.select", args{"name": name}) })
+		}
+		if m.Item("New tab").Disabled(!spaces || a.machineReady(name) != nil).Chosen() {
+			a.post(func() { a.doToast("tab.new", args{"machine": name}) })
+		}
 		if m.Item("New space").Disabled(a.machineReady(name) != nil).Chosen() {
 			a.post(func() { a.newSpaceOn(name) })
+		}
+		m.Separator()
+		if m.Item("Add machine…").Chosen() {
+			a.post(func() { a.doToast("machine.add", nil) })
 		}
 		if m.Item("Machines…").Chosen() {
 			a.post(func() { a.openSettings("machines") })

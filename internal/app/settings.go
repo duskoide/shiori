@@ -332,6 +332,11 @@ func (a *App) actionTitle(section, spec string) string {
 	switch act.Command {
 	case "space.select":
 		return "Go to space " + act.Arg
+	case "machine.select":
+		if act.Arg == "1" {
+			return "Go to this computer"
+		}
+		return "Go to machine " + act.Arg
 	case "tab.select":
 		return "Go to tab " + act.Arg
 	case "pane.go":
@@ -380,7 +385,7 @@ func (a *App) actionRuns(section, spec string) bool {
 
 // bindingGroups names the groups of the global section, by command prefix.
 var bindingGroups = []struct{ prefix, title string }{
-	{"space", "Spaces"}, {"tab", "Tabs"}, {"pane", "Panes"}, {"agent", "Agents"},
+	{"space", "Spaces"}, {"tab", "Tabs"}, {"pane", "Panes"}, {"agent", "Agents"}, {"machine", "Machines"},
 	{"layout", "Window"}, {"mod", "Window"}, {"app", "Window"}, {"window", "Window"},
 }
 
@@ -460,7 +465,7 @@ func (a *App) bindingRows(section string) []bindingRow {
 		rows = append(rows, r)
 	}
 	groupIndex := func(g string) int {
-		for i, x := range []string{"Spaces", "Tabs", "Panes", "Agents", "Window"} {
+		for i, x := range []string{"Spaces", "Tabs", "Panes", "Agents", "Machines", "Window"} {
 			if x == g {
 				return i
 			}
