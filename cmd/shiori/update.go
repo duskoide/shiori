@@ -45,10 +45,10 @@ func runUpdate(argv []string, out io.Writer, home string) error {
 	switch {
 	case errors.Is(err, update.ErrNoRelease) && want != "":
 		return fmt.Errorf("no release %s of %s", want, opts.RepoName())
-	case errors.Is(err, update.ErrNoRelease) && opts.Token == "":
-		return fmt.Errorf("no release of %s found; while the repository is private, set GITHUB_TOKEN to a token that can read it", opts.RepoName())
+	case errors.Is(err, update.ErrNoRelease) && !opts.HasToken():
+		return fmt.Errorf("no release of %s found; while the repository is private, log in with gh (gh auth login) or set GITHUB_TOKEN to a token that can read it", opts.RepoName())
 	case errors.Is(err, update.ErrNoRelease):
-		return fmt.Errorf("no release of %s found, with the token in GITHUB_TOKEN (or GH_TOKEN)", opts.RepoName())
+		return fmt.Errorf("no release of %s found, with the token of GITHUB_TOKEN, GH_TOKEN or gh's login", opts.RepoName())
 	case err != nil:
 		return fmt.Errorf("cannot look for a new version: %w", err)
 	}

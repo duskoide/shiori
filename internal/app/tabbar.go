@@ -74,7 +74,7 @@ func (a *App) newMenu(m *ui.Menu) {
 	}
 	m.Separator()
 	if m.Item("New space").Chosen() {
-		a.post(func() { a.do("space.new", nil) })
+		a.post(func() { a.doAction("space.new", "") })
 	}
 }
 
@@ -225,7 +225,8 @@ func (a *App) statusBar(c *ui.Context, k *colors) {
 }
 
 // statusMachine is the machine of the shown space, as herdr-app's status
-// bar has it: its name and state, "This computer" for this one's.
+// bar has it: its name and state, "This computer" for this one's. A click
+// opens the machine switcher.
 func (a *App) statusMachine(c *ui.Context, k *colors) {
 	here := ""
 	if s := a.space(); s != nil {
@@ -251,14 +252,13 @@ func (a *App) statusMachine(c *ui.Context, k *colors) {
 		dot, name, tip = k.blocked, name+" · disconnected", a.connErr
 	}
 	row := ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Label("Machine of the space " + name)
+	// A click switches machine.
 	if tip != "" {
-		row.Tooltip(tip)
+		tip += " · "
 	}
-	if here != "" {
-		row.Cursor(ui.CursorPointer).Role(ui.RoleButton)
-		if row.Clicked() {
-			a.post(func() { a.openSettings("machines") })
-		}
+	row.Tooltip(tip + withKeys("Switch machine", a.keysFor("machine.switch"))).Cursor(ui.CursorPointer).Role(ui.RoleButton)
+	if row.Clicked() {
+		a.post(func() { a.doAction("machine.switch", "") })
 	}
 	row.Children(func() {
 		ui.Box(c).Size(6, 6).Radius(3).Background(dot)

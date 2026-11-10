@@ -30,6 +30,8 @@ herdr-app can show the same spaces side by side.
 - Other machines: the spaces and terminals of machines herdr-core reaches
   over SSH, beside this one's, each under its name in the sidebar; added
   and managed in Settings → Machines (see "Work on another machine")
+- A machine switcher (`Ctrl+B M`, or a click on the status bar's machine):
+  go to a machine, start a tab or a space on any of them, or add one
 - Mods: commands, keys and event handlers added by programs in any
   language, over the control socket (see [examples/mods](examples/mods/README.md))
 - herdr-app's default key bindings (`keys.json` overrides them)
@@ -122,6 +124,24 @@ window still runs here.
    there, starting in its home. Tabs and splits of its spaces run there,
    agents in that machine's login shell.
 
+To go between machines, press `Ctrl+B M`, or click the machine in the
+status bar. The switcher lists:
+
+- every machine, with its spaces and state. Enter on one shows the space
+  you last looked at there (or makes a space when it has none). It opens
+  on the next machine, so `Ctrl+B M` then Enter goes back and forth
+  between two.
+- "New tab on …" and "New space on …" for each connected machine: the tab
+  goes to the space last shown there.
+- "Log in to …" for a machine that needs it, "Add a machine…" (it asks
+  for `user@host`), one "Add …" per host of your `~/.ssh/config` not
+  added yet, and "Manage machines…" for the settings page.
+
+`Ctrl+B ]` and `Ctrl+B [` go to the next and previous machine that has
+spaces, without the list. A machine's name in the sidebar has the same
+actions in its right-click menu. New spaces made with the keys or the
+`+` buttons open on the machine you are looking at.
+
 Each machine keeps its own layout, so herdr-app and Shiori on any machine
 show the same spaces. A machine that disconnects keeps its spaces shown,
 greyed; edits of them are saved once it is back. Removing a machine
@@ -131,7 +151,10 @@ another machine's space asks git there.
 
 From the CLI: `shiori do machine.list`, `machine.add --target me@box`,
 `machine.rename`, `machine.remove`, `machine.update`, `machine.login`,
-and `space.new --machine box`.
+`machine.select --name box` (or `--index 2`; 1 is this computer),
+`machine.next`, `machine.prev`, `machine.switch`, and
+`space.new --machine box` or `tab.new --machine box` (`--machine local`
+is this computer).
 
 ## Updating
 
@@ -144,8 +167,16 @@ shiori update --version v0.2.0  # or a release of your choice
 `shiori update` downloads the release for this OS and CPU, checks it
 against the release's `checksums.txt`, and replaces the binary and the
 herdr-core bundled beside it (where `install.sh` put them). Close Shiori
-and open it again afterwards. While the repository is private, set
-`GITHUB_TOKEN` to a token that can read it.
+and open it again afterwards.
+
+Requests to GitHub carry a token when there is one: `GITHUB_TOKEN`, else
+`GH_TOKEN`, else the token of the GitHub CLI's login (`gh auth token`,
+when `gh` is installed and logged in). Without one, GitHub takes 60
+requests an hour from an address and then refuses them until the hour
+is up, which Shiori says, with the time; with one it takes 5,000. While
+the repository is private, the token must be able to read it. The CLI's
+token goes only to GitHub's own API, not to one `SHIORI_UPDATE_API`
+names.
 
 The window also looks for a new release once a day and, when there is
 one, says so once and shows "Update to …" in the status bar. That look

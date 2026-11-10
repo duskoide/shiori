@@ -96,7 +96,7 @@ func init() {
 		{Name: "space.next", Title: "Next space", run: func(a *App, _ args) (any, error) { return nil, a.cycleSpace(1) }},
 		{Name: "space.prev", Title: "Previous space", run: func(a *App, _ args) (any, error) { return nil, a.cycleSpace(-1) }},
 		{Name: "space.move", Title: "Move space", Args: []argDef{required("id"), required("index")}, hidden: true, run: (*App).cmdSpaceMove},
-		{Name: "tab.new", Title: "New tab", About: "Open a tab with a terminal in the focused folder", Args: []argDef{arg("name"), arg("space"), arg("folder"), arg("argv"), arg("task"), arg("mod"), arg("props")}, run: (*App).cmdTabNew},
+		{Name: "tab.new", Title: "New tab", About: "Open a tab with a terminal in the focused folder; with machine, in the space last shown on that machine (a new space when it has none)", Args: []argDef{arg("name"), arg("space"), arg("folder"), arg("argv"), arg("task"), arg("mod"), arg("props"), arg("machine")}, run: (*App).cmdTabNew},
 		{Name: "tab.close", Title: "Close tab", Args: []argDef{arg("id"), arg("confirmed")}, run: (*App).cmdTabClose},
 		{Name: "tab.rename", Title: "Rename tab", Args: []argDef{arg("id"), arg("name")}, run: (*App).cmdTabRename},
 		{Name: "tab.select", Title: "Select tab", Args: []argDef{arg("index"), arg("id")}, hidden: true, run: (*App).cmdTabSelect},
@@ -120,7 +120,11 @@ func init() {
 		{Name: "terminal.kill", Title: "Kill terminal", Args: []argDef{required("terminal")}, hidden: true, run: (*App).cmdTerminalKill},
 		{Name: "terminal.pin", Title: "Pin agent", Args: []argDef{required("terminal"), required("pinned")}, hidden: true, run: (*App).cmdTerminalPin},
 		{Name: "machine.list", Title: "List machines", About: "The other machines herdr-core reaches, temporary ones left out", hidden: true, run: (*App).cmdMachineList},
-		{Name: "machine.add", Title: "Add machine", About: "Add a machine over SSH (target: user@host or a host of ~/.ssh/config); answers {added} or, when it needs you, {in_tab}", Args: []argDef{required("target")}, hidden: true, run: (*App).cmdMachineAdd},
+		{Name: "machine.switch", Title: "Switch machine", About: "Open the machine switcher: go to a machine, make a tab or a space on one, or add one", run: (*App).cmdMachineSwitch},
+		{Name: "machine.select", Title: "Go to machine", About: "Show the space last shown on a machine, or make one there when it has none; index 1 is this computer, then the others by name", Args: []argDef{arg("name"), arg("index")}, hidden: true, run: (*App).cmdMachineSelect},
+		{Name: "machine.next", Title: "Next machine", About: "Go to the next machine that has spaces", run: func(a *App, _ args) (any, error) { return a.cycleMachine(1) }},
+		{Name: "machine.prev", Title: "Previous machine", About: "Go to the previous machine that has spaces", run: func(a *App, _ args) (any, error) { return a.cycleMachine(-1) }},
+		{Name: "machine.add", Title: "Add machine", About: "Add a machine over SSH (target: user@host or a host of ~/.ssh/config; without it, the window asks); answers {added} or, when it needs you, {in_tab}", Args: []argDef{arg("target")}, run: (*App).cmdMachineAdd},
 		{Name: "machine.rename", Title: "Rename machine", Args: []argDef{required("name"), required("to")}, hidden: true, run: (*App).cmdMachineRename},
 		{Name: "machine.remove", Title: "Remove machine", About: "Forget a machine; its terminals keep running there", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdMachineRemove},
 		{Name: "machine.update", Title: "Update machine", About: "Put this machine's herdr-core version on it; answers {version}", Args: []argDef{required("name")}, hidden: true, run: (*App).cmdMachineUpdate},
@@ -240,12 +244,12 @@ func (a *App) doAction(command, value string) {
 			v[c.Args[0].Name] = value
 		}
 	}
-	r, err := a.do(command, v)
-	if err != nil {
-		a.notifyLevel(err.Error(), levelError)
-		return
+	if command == "space.new" && value == "" {
+		// A person's new space is on the machine they look at, as
+		// herdr-app's; a script's is on this one unless it says.
+		v["machine"] = a.here()
 	}
-	a.reportLater(command, r)
+	a.doToast(command, v)
 }
 
 func hasArg(c *command, name string) bool {
@@ -688,6 +692,21 @@ func (a *App) cmdTabNew(v args) (any, error) {
 	if id := v.str("space"); id != "" {
 		if s = a.doc.Space(id); s == nil {
 			return nil, fmt.Errorf("no space %q", id)
+		}
+	}
+	if _, on := v["machine"]; on {
+		// A tab on a machine goes to the space last shown there.
+		m, err := a.machineNamed(v.str("machine"))
+		switch {
+		case err != nil:
+			return nil, err
+		case v.str("space") != "" && s.Machine != m:
+			return nil, fmt.Errorf("space %q is not on %s", s.ID, machineTitle(m))
+		case v.str("space") == "":
+			a.noteSpace()
+			if s = a.machineSpace(m); s == nil {
+				return a.cmdSpaceNew(args{"machine": m, "tab": v.str("name"), "folder": v.str("folder"), "argv": v["argv"], "task": v.str("task")})
+			}
 		}
 	}
 	if s == nil {

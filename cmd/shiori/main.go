@@ -39,7 +39,8 @@ Environment:
                 a dev build)
   HC_SESSION    the herdr-core session to use (default "default";
                 "shiori-dev" for a dev build)
-  GITHUB_TOKEN  for shiori update while the repository is private
+  GITHUB_TOKEN  a token for shiori update's requests to GitHub; without
+                it, gh's login's
 `
 
 func main() {

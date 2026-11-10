@@ -15,6 +15,8 @@ type paletteState struct {
 	sel      int
 	reveal   bool
 	switcher bool       // opened as the picker: spaces and tabs first
+	machines bool       // opened as the machine switcher (machineswitch.go)
+	hosts    []string   // its hosts of ~/.ssh/config, read as it opened
 	pick     *pickState // opened by app.pick: its items alone
 }
 
@@ -33,6 +35,7 @@ const paletteRows = 12
 type paletteItem struct {
 	title, detail, keys string
 	run                 func()
+	id, icon            string // the machine switcher's: what the row is, and its icon
 }
 
 func (a *App) openPalette(query string) {
@@ -48,6 +51,15 @@ func (a *App) paletteItems() []paletteItem {
 			if match(it.title + " " + it.detail) {
 				id := it.id
 				out = append(out, paletteItem{title: it.title, detail: it.detail, run: func() { pk.done(id) }})
+			}
+		}
+		return out
+	}
+	if a.palette.machines {
+		var out []paletteItem
+		for _, it := range a.machineItems() {
+			if match(it.title + " " + it.detail) {
+				out = append(out, it)
 			}
 		}
 		return out
@@ -112,8 +124,12 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 		a.focusReq = a.focus[a.activeTab[a.activeSpace]]
 		a.post(it.run)
 	}
-	placeholder := "Type a command, a space or a tab…"
+	placeholder, title, label := "Type a command, a space or a tab…", "", "Search commands"
+	if a.palette.machines {
+		placeholder, title, label = "Go to a machine, or start a tab or a space on one…", "Machines", "Search machines"
+	}
 	if pick != nil {
+		title, label = pick.title, "Filter "+pick.title
 		placeholder = pick.placeholder
 		if placeholder == "" {
 			placeholder = "Type to filter…"
@@ -124,14 +140,10 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 		panel.Width(640).MaxHeight(480).Radius(12).Background(k.popover).Border(1, k.border).
 			Shadow(0, 24, 60, -8, ui.RGBA(0, 0, 0, 0.4)).Clip()
 		panel.Children(func() {
-			if pick != nil && pick.title != "" {
-				ui.Text(c, pick.title).FontSize(ts(12)).FontWeight(600).TextColor(k.muted).Padding(10, 14, 0, 14)
+			if title != "" {
+				ui.Text(c, title).FontSize(ts(12)).FontWeight(600).TextColor(k.muted).Padding(10, 14, 0, 14)
 			}
 			ui.Row(c).Padding(10, 14).BorderWidth(0, 0, 1, 0).BorderColor(k.border).Children(func() {
-				label := "Search commands"
-				if pick != nil {
-					label = "Filter " + pick.title
-				}
 				in := ui.TextInputBase(c, &a.palette.query).Grow(1).FontSize(ts(14)).TextColor(k.foreground).
 					Placeholder(placeholder).Label(label).AutoFocus()
 				if in.Changed() {
@@ -183,6 +195,9 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 						closeAndRun(it)
 					}
 					row.Children(func() {
+						if it.icon != "" {
+							ui.Icon(c, glyph(it.icon)).Size(14, 14).TextColor(k.muted).Shrink(0)
+						}
 						ui.Text(c, it.title).FontSize(ts(13)).TextColor(k.foreground).SingleLine()
 						if it.detail != "" {
 							ui.Text(c, it.detail).FontSize(ts(11.5)).TextColor(k.dim).SingleLine().Ellipsis("…").MinWidth(0).Shrink(1)
@@ -218,6 +233,7 @@ func (a *App) paletteView(c *ui.Context, k *colors) {
 // promptState asks for a line of text, as a new name.
 type promptState struct {
 	title, value, placeholder, hint string
+	yesLabel                        string // the button's, "Save" when empty
 	done                            func(string)
 	cancel                          func() // when closed without an answer, if set
 	open, answered                  bool
@@ -256,7 +272,11 @@ func (a *App) promptView(c *ui.Context, k *colors) {
 				if ui.Button(c, "Cancel").Tooltip("Esc").Clicked() {
 					p.open = false
 				}
-				if ui.PrimaryButton(c, "Save").Tooltip("Enter").Clicked() {
+				yes := p.yesLabel
+				if yes == "" {
+					yes = "Save"
+				}
+				if ui.PrimaryButton(c, yes).Tooltip("Enter").Clicked() {
 					submit()
 				}
 			})

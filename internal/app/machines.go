@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/duskoide/shiori/internal/core"
+	"github.com/duskoide/shiori/internal/layout"
 	"github.com/duskoide/shiori/internal/update"
 )
 
@@ -237,6 +238,15 @@ func (a *App) cmdMachineList(args) (any, error) {
 // cmdMachineAdd adds a machine over SSH. When that needs a person, it goes
 // on in a tab, and answers {in_tab: true}.
 func (a *App) cmdMachineAdd(v args) (any, error) {
+	if !given(v["target"]) {
+		a.askText("Add a machine", "", "user@host", "How SSH reaches it: user@host, or a host of your ~/.ssh/config. Your SSH keys are used; when it needs a password, a host key confirmed or herdr-core installed there, it goes on in a tab where you answer.", func(target string) {
+			if target != "" {
+				a.doToast("machine.add", args{"target": target})
+			}
+		})
+		a.prompt.yesLabel = "Add"
+		return nil, nil
+	}
 	target := v.str("target")
 	if target == "" || strings.ContainsAny(target, " \t\n") {
 		return nil, errors.New("target is how SSH reaches the machine: user@host, or a host of ~/.ssh/config")
@@ -251,6 +261,7 @@ func (a *App) cmdMachineAdd(v args) (any, error) {
 		switch {
 		case err == nil:
 			op.msg = "Added " + target + "."
+			a.notify(withKeys("Added "+target+": Switch machine goes to it", a.keysFor("machine.switch")))
 			a.mach.target = ""
 			return map[string]any{"added": target}, nil
 		case core.AddNeedsPerson(err):
@@ -299,6 +310,11 @@ func (a *App) cmdMachineRename(v args) (any, error) {
 			return nil, err
 		}
 		delete(a.mach.ops, name)
+		if id := a.lastSpace[name]; id != "" {
+			// Its spaces come back under the new name.
+			a.lastSpace[to] = layout.Qualify(layout.Local(id, name), to)
+			delete(a.lastSpace, name)
+		}
 		a.notify("Renamed " + name + " to " + to)
 		return map[string]string{"name": to}, nil
 	}), nil
@@ -317,6 +333,7 @@ func (a *App) cmdMachineRemove(v args) (any, error) {
 			return nil, err
 		}
 		delete(a.mach.ops, name)
+		delete(a.lastSpace, name)
 		a.notify("Removed " + name + "; its terminals keep running there")
 		return map[string]string{"removed": name}, nil
 	}), nil

@@ -130,7 +130,8 @@ func TestSSHHosts(t *testing.T) {
 }
 
 // The sidebar heads each machine's spaces, and its + makes a space there;
-// the status bar names the shown space's machine and opens their page.
+// the status bar names the shown space's machine and opens the switcher,
+// whose last row is their page.
 func TestMachinesInTheWindow(t *testing.T) {
 	a, f := machineApp(t)
 	f.runOK = true
@@ -152,6 +153,10 @@ func TestMachinesInTheWindow(t *testing.T) {
 
 	// The new space is shown: the status bar names its machine.
 	mustClick(t, tt, "Machine of the space mac")
+	if !a.palette.open || !a.palette.machines {
+		t.Fatal("the machine switcher did not open")
+	}
+	mustClick(t, tt, "Manage machines…")
 	if !a.settings || a.set.section != "machines" {
 		t.Fatal("the machines page did not open")
 	}
@@ -314,7 +319,15 @@ func TestStatusBarFollowsTheSpacesMachine(t *testing.T) {
 	}
 	shot(t, tt, "status-machine")
 	mustClick(t, tt, "Machine of the space mac · reconnecting")
-	if !a.settings || a.set.section != "machines" {
-		t.Fatal("the machines page did not open")
+	if !a.palette.open || !a.palette.machines {
+		t.Fatal("the machine switcher did not open")
+	}
+	// This computer's opens it too.
+	a.palette = paletteState{}
+	a.activeSpace = "s1"
+	settle(tt)
+	mustClick(t, tt, "Machine of the space This computer")
+	if !a.palette.open || !a.palette.machines {
+		t.Fatal("the machine switcher did not open from this computer's")
 	}
 }
